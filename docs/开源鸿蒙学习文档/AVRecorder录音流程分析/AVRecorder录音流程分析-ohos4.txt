@@ -1,0 +1,195 @@
+/////////////////  app 到 pluseaudio client之间的流程 ////////////////////////////////
+
+MediaServer::GetSubSystemAbility
+	MediaServerManager::CreateStubObject
+		MediaServerManager::CreateRecorderStubObject
+			RecorderServiceStub::Create
+				RecorderServiceStub::Init
+					RecorderServer::Create
+						RecorderServer::Init
+							GstEngineFactory::CreateRecorderEngine
+								RecorderEngineGstImpl::Init
+									RecorderPipelineCtrler::Init
+										启动 cmdQ_
+										启动 msgQ_
+									RecorderPipelineBuilder::RecorderPipelineBuilder
+
+
+RecorderServer::SetAudioSource
+RecorderServer::SetOutputFormat
+RecorderServer::SetAudioEncoder				
+RecorderServer::SetAudioEncodingBitRate
+RecorderServer::SetAudioSampleRate
+RecorderServer::SetAudioChannels
+
+RecorderServer::Prepare
+	RecorderEngineGstImpl::SetAudioSource
+		RecorderPipelineBuilder::SetSource
+			RecorderPipelineBuilder::SetAudioSource
+				这里主要是创建sink，src元素，然后link起来
+				AudioSource::Configure			//REGISTER_RECORDER_ELEMENT(AudioSource);这里注册，所以这里调用的是AudioSource的Configure
+					AudioSource::ConfigAppInfo
+				
+	RecorderEngineGstImpl::SetOutputFormat
+		RecorderPipelineBuilder::SetOutputFormat
+			MuxSinkBin::Configure
+				MuxSinkBin::ConfigureOutputFormat
+				
+	RecorderEngineGstImpl::Configure
+		RecorderPipelineBuilder::Configure
+			AudioEncoder::Configure
+				if (recParam.type == RecorderPublicParamType::AUD_ENC_FMT){}
+				if (recParam.type == RecorderPublicParamType::AUD_BITRATE){}
+			AudioSource::Configure
+				AudioSource::ConfigAudioSampleRate
+				AudioSource::ConfigAudioChannels
+			
+	
+	REC_INITIALIZED
+	RecorderEngineGstImpl::Prepare
+		RecorderEngineGstImpl::BuildPipeline
+			RecorderPipelineBuilder::Build		//这里创建pipeline
+				AudioSource::CheckConfigReady
+				AudioEncoder::CheckConfigReady
+				MuxSinkBin::CheckConfigReady
+				RecorderPipelineBuilder::ExecuteLink
+					RecorderPipeline::Init
+					RecorderPipelineLinkHelper::ExecuteLink			//把AudioSource，AudioConvert,AudioEncoder, MuxSinkBin 串起来
+				
+			RecorderPipelineCtrler::SetPipeline
+		RecorderPipelineCtrler::Prepare
+			RecorderPipeline::Prepare
+				AudioSource::Prepare	//这些AudioSource，AudioConvert,AudioEncoder, MuxSinkBin都继承RecorderElement
+				SyncWaitChangeState(GST_STATE_PAUSED);           =====》	gst_audio_capture_src_class_init
+																			gst_audio_capture_src_change_state  
+																				AudioCaptureAsImpl::SetCaptureParameter   //设置capture参数
+																					AudioStandard::AudioCapturer::Create   
+																						AudioCapturerPrivate::AudioCapturerPrivate
+																							IAudioStream::GetRecordStream	//创建AudioStream，继承AudioServiceClient
+																					AudioCapturerPrivate::SetParams
+																						AudioStream::SetCapturerInfo
+																						AudioStream::SetAudioStreamInfo
+																							AudioServiceClient::Initialize
+																							AudioServiceClient::CreateStream
+																								AudioServiceClient::ConnectStreamToPA
+																					AudioCapturerPrivate::GetBufferSize
+																									
+																						
+
+
+RecorderServer::Start
+	RecorderEngineGstImpl::Start
+		RecorderPipelineCtrler::Start
+			RecorderPipeline::Start
+				RecorderElement::Start  //目前看起来好像gst元素没有重写
+				SyncWaitChangeState(GST_STATE_PLAYING);			=====》	gst_audio_capture_src_class_init
+																			gst_audio_capture_src_change_state
+																				AudioCaptureAsImpl::StartAudioCapture
+																					AudioCapturerPrivate::Start
+																						AudioPolicyManager::ActivateAudioInterrupt
+																						AudioStream::StartAudioStream
+																							AudioServiceClient::StartStream		//让PA可以从他读取数据，使能
+																							AudioStream::ReadCbThreadLoop		//创建音频读线程，CAPTURE_MODE_CALLBACK回调模式走这个读取
+																								AudioServiceClient::ReadStream   //从PA读数据，
+																								
+																					AudioCaptureAsImpl::GetAudioCaptureBuffer			//CAPTURE_MODE_NORMAL正常模式走这个读取
+																						AudioCaptureAsImpl::AudioCaptureLoop
+																							AudioCaptureAsImpl::GetBuffer
+																							AudioCaptureAsImpl::GetSegmentData
+																								AudioCapturerPrivate::Read
+																									AudioStream::Read
+																										AudioServiceClient::ReadStream	
+																							
+																				
+
+/////////////////  pluseaudio server 到 hdi 之间的流程 ////////////////////////////////	
+AudioServer::OnStart
+	AudioServer::paDaemonThread
+		ohos_pa_main
+			pa_mainloop_new
+			pa_daemon_conf_open_default_script_file    //读取/system/etc/pulse/default.pa
+			pa_cli_command_execute
+				load-module libmodule-native-protocol-unix.z.so
+				load-module libmodule-cli-protocol-unix.z.so
+			pa_mainloop_run
+				command_cork_record_stream		====>   当客户端发送命令[PA_COMMAND_CORK_RECORD_STREAM]后执行
+	AudioServer::RegisterAudioCapturerSourceCallback
+		IAudioCapturerSource::GetInstance
+			AudioCapturerSource::GetInstance
+				AudioCapturerSource::GetMicInstance
+					AudioCapturerSourceInner::AudioCapturerSourceInner
+		AudioCapturerSourceInner::RegisterAudioCapturerSourceCallback	//把AudioServer当Callback注册
+		
+AudioPolicyServer::AudioPolicyServer
+	AudioPolicyService& GetAudioPolicyService	
+		AudioPolicyManagerFactory::GetAudioPolicyManager
+		ParserFactory::GetInstance().CreateParser
+		AudioStreamCollector::GetAudioStreamCollector
+		AudioEffectManager::GetAudioEffectManager
+		DeviceStatusListener::DeviceStatusListener
+	AudioPolicyServer::OnStart
+		AudioPolicyService::Init
+			AudioAdapterManager::Init
+			AudioEffectManager::EffectManagerInit
+			XMLParser::LoadConfiguration									///vendor/etc/audio/audio_policy_config.xml
+			DeviceStatusListener::RegisterDeviceStatusListener
+				HDIServiceManagerGet										//创建hdiservicemanager
+				HdiServiceStatusListenerNewInstance
+				HDIServMgrRegisterServiceStatusListener
+					ServiceManagerHdiCall
+						ServstatListenerStubRemoteDispatch
+							OnServiceStatusReceived
+								AudioPolicyService::OnServiceConnected(HDI_SERVICE_INDEX)
+									
+			AudioPolicyService::RegisterRemoteDevStatusCallback				//分布式？
+			
+	AudioPolicyServer::OnAddSystemAbility
+		AudioPolicyServer::ConnectServiceAdapter
+			AudioAdapterManager::ConnectServiceAdapter
+				AudioServiceAdapter::CreateAudioAdapter
+				PulseAudioServiceAdapterImpl::Connect		//这个里面为什么会去连接pluseaudio服务端，他自己为什么作为客户端。 分布式？
+			AudioPolicyService::OnServiceConnected(AUDIO_SERVICE_INDEX)
+				AudioAdapterManager::OpenAudioPort
+					PulseAudioServiceAdapterImpl::OpenAudioPort
+						pa_context_load_module		//发送命令PA_COMMAND_LOAD_MODULE
+							command_load_module
+								pa_module_load
+									pa__init
+										PaHdiSourceNew	
+											LoadSourceAdapter
+												FillinSourceWapper
+													IAudioCapturerSource::GetInstance
+														AudioCapturerSource::GetInstance
+															AudioCapturerSource::GetMicInstance
+											PaHdiCapturerInit
+												CapturerSourceInitInner
+													AudioCapturerSourceInner::Init
+														AudioCapturerSourceInner::InitAudioManager
+															AudioManagerImplGetInstance
+																struct IAudioManager *AudioManagerCreateIfInstance(void)
+														AudioManagerLoadAdapter
+															SelectAppropriateAdapter
+																LoadAdapterImpl
+														AudioCapturerSourceInner::CreateCapture
+															AudioAdapterCreateCapture
+																
+											ThreadFuncCapturerTimer
+												while(true){
+													PaRtpollSetTimerFunc
+														GetCapturerFrameFromHdi
+															IAudioCapturerSourceFrame
+																AudioCapturerSourceInner::CaptureFrame
+																	AudioCaptureCaptureFrame			//hdi层
+												}
+								
+		AudioPolicyServer::RegisterParamCallback											
+			AudioPolicyService::SetParameterCallback
+				
+	
+	
+
+
+
+NOTE:
+	开启AvRecorder录音 dump： 
+		param set sys.audiostream.dump "true"

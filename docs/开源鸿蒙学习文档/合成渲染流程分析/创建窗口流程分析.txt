@@ -1,0 +1,49 @@
+WindowImpl::WindowImpl
+	WindowImpl::CreateSurfaceNode
+		RSSurfaceNode::Create
+			RSSurfaceNode::RSSurfaceNode
+				RSNode::RSNode
+					RSNode::InitUniRenderEnabled
+					RSNode::UpdateImplicitAnimator
+			RSNodeMap::RegisterNode
+			RSSurfaceNode::CreateNodeAndSurface
+				RSRenderServiceClient::CreateNodeAndSurface
+					RSRenderServiceConnection::CreateNodeAndSurface
+						
+				RSRenderServiceClient::CreateRSSurface
+			
+WindowImpl::Create
+	WindowImpl::SetDefaultDisplayIdIfNeed
+		DisplayManagerService::GetDefaultDisplayInfo
+			AbstractScreenController::GetDefaultAbstractScreenId
+				RSInterfaces::GetDefaultScreenId
+					RSRenderServiceConnectHub::GetRenderService
+						RSRenderServiceConnectHub::GetRenderServiceConnection
+							RSRenderServiceConnectHub::Connect
+								RSRenderService::CreateConnection
+					RSRenderServiceConnection::GetDefaultScreenId
+						OHOS::Rosen::RSScreenManager::GetDefaultScreenId ////默认屏幕id在render service启动时设置
+				
+				AbstractScreenController::ProcessScreenConnected
+					AbstractScreenController::InitAndGetScreen
+						AbstractScreenController::ScreenIdManager::CreateAndGetNewScreenId
+						RSRenderServiceConnection::GetScreenCapability
+							RSScreenManager::GetScreenCapability
+								RSScreenManager::GetScreenCapabilityLocked
+						AbstractScreen::AbstractScreen
+						AbstractScreenController::InitAbstractScreenModesInfo
+						dmsScreenMap_.insert(std::make_pair(dmsScreenId, absScreen)); //dmsScreen对应的absScreen
+					AbstractScreenController::AddToGroupLocked
+						AbstractScreenController::AddAsFirstScreenLocked
+						AbstractScreenController::AddAsSuccedentScreenLocked
+					AbstractScreenController::NotifyScreenConnected
+					AbstractScreenController::NotifyScreenGroupChanged
+					AbstractDisplayController::OnAbstractScreenConnect
+						AbstractDisplayController::AddScreenToExpandLocked
+						
+				AbstractScreenController::ScreenIdManager::ConvertToDmsScreenId
+					
+			AbstractDisplayController::GetAbstractDisplayByScreen
+			AbstractDisplay::ConvertToDisplayInfo
+
+

@@ -1,0 +1,162 @@
+diff --git a/frameworks/native/audiocapturer/BUILD.gn b/frameworks/native/audiocapturer/BUILD.gn
+index 4ed6d242a..b20664dc9 100644
+--- a/frameworks/native/audiocapturer/BUILD.gn
++++ b/frameworks/native/audiocapturer/BUILD.gn
+@@ -57,6 +57,7 @@ ohos_shared_library("audio_capturer") {
+   deps = [
+     "../../../services/audio_policy:audio_policy_client",
+     "../../../services/audio_service:audio_client",
++    "../audioutils:audio_utils",
+   ]
+ 
+   deps += audio_capturer_gateway_deps
+diff --git a/frameworks/native/audiocapturer/include/audio_capturer_private.h b/frameworks/native/audiocapturer/include/audio_capturer_private.h
+index 319a4c0c3..3c19f4b8b 100644
+--- a/frameworks/native/audiocapturer/include/audio_capturer_private.h
++++ b/frameworks/native/audiocapturer/include/audio_capturer_private.h
+@@ -17,6 +17,7 @@
+ #define AUDIO_CAPTURER_PRIVATE_H
+ 
+ #include <mutex>
++#include "audio_utils.h"
+ #include "audio_interrupt_callback.h"
+ #include "i_audio_stream.h"
+ #include "audio_capturer_proxy_obj.h"
+@@ -101,6 +102,7 @@ private:
+     };
+     std::mutex lock_;
+     bool isValid_ = true;
++    FILE *dumpAudioStreamFile_ = nullptr;
+ };
+ 
+ class AudioCapturerInterruptCallbackImpl : public AudioInterruptCallback {
+diff --git a/frameworks/native/audiocapturer/src/audio_capturer.cpp b/frameworks/native/audiocapturer/src/audio_capturer.cpp
+index e616d959b..9a4c7927c 100644
+--- a/frameworks/native/audiocapturer/src/audio_capturer.cpp
++++ b/frameworks/native/audiocapturer/src/audio_capturer.cpp
+@@ -17,16 +17,20 @@
+ 
+ #include "audio_capturer_private.h"
+ #include "audio_errors.h"
++#include "audio_utils.h"
+ #ifdef OHCORE
+ #include "audio_capturer_gateway.h"
+ #endif
+ #include "audio_log.h"
+ #include "audio_policy_manager.h"
+ 
++
+ namespace OHOS {
+ namespace AudioStandard {
+ AudioCapturer::~AudioCapturer() = default;
+-AudioCapturerPrivate::~AudioCapturerPrivate() = default;
++AudioCapturerPrivate::~AudioCapturerPrivate() {
++    AudioStreamDump::CloseFile(&dumpAudioStreamFile_);
++}
+ 
+ std::unique_ptr<AudioCapturer> AudioCapturer::Create(AudioStreamType audioStreamType)
+ {
+@@ -214,6 +218,10 @@ int32_t AudioCapturerPrivate::SetParams(const AudioCapturerParams params)
+             return ERROR;
+         }
+     }
++    std::string fileName = "audiostream_" + std::to_string(params.samplingRate) + "_" +
++        std::to_string(params.audioChannel) + "_" + std::to_string(params.audioSampleFormat) + ".pcm";
++    dumpAudioStreamFile_ = AudioStreamDump::OpenFile(fileName);
++
+     return AudioPolicyManager::GetInstance().SetAudioInterruptCallback(sessionID_, audioInterruptCallback_);
+ }
+ 
+@@ -361,7 +369,11 @@ bool AudioCapturerPrivate::Start() const
+ 
+ int32_t AudioCapturerPrivate::Read(uint8_t &buffer, size_t userSize, bool isBlockingRead) const
+ {
+-    return audioStream_->Read(buffer, userSize, isBlockingRead);
++    int32_t ret = audioStream_->Read(buffer, userSize, isBlockingRead);
++    if (ret > 0) {
++        AudioStreamDump::WriteFile(dumpAudioStreamFile_, static_cast<void *>(&buffer), ret);
++    }
++    return ret;
+ }
+ 
+ CapturerState AudioCapturerPrivate::GetStatus() const
+diff --git a/frameworks/native/audioutils/include/audio_utils.h b/frameworks/native/audioutils/include/audio_utils.h
+index 2efce8178..94037db9d 100644
+--- a/frameworks/native/audioutils/include/audio_utils.h
++++ b/frameworks/native/audioutils/include/audio_utils.h
+@@ -17,10 +17,12 @@
+ 
+ #include <cstdint>
+ #include <string>
++#include <cstdio>
+ 
+ #define AUDIO_MS_PER_SECOND 1000
+ #define AUDIO_US_PER_SECOND 1000000
+ #define AUDIO_NS_PER_SECOND ((int64_t)1000000000)
++#define CTRL_AUDIOSTREAM_DUMP "sys.audiostream.dump"
+ namespace OHOS {
+ namespace AudioStandard {
+ class Trace {
+@@ -61,6 +63,13 @@ void AdjustAudioBalanceForPCM32Bit(int32_t *data, uint64_t len, float left, floa
+ 
+ template <typename T>
+ bool GetSysPara(const char *key, T &value);
++
++class AudioStreamDump{
++public:
++    static FILE* OpenFile(std::string filename);
++    static void WriteFile(FILE* file, void* buf, size_t sz);
++    static void CloseFile(FILE** file);
++};
+ } // namespace AudioStandard
+ } // namespace OHOS
+ #endif // AUDIO_UTILS_H
+diff --git a/frameworks/native/audioutils/src/audio_utils.cpp b/frameworks/native/audioutils/src/audio_utils.cpp
+index 4b2cc0613..822b49fa1 100644
+--- a/frameworks/native/audioutils/src/audio_utils.cpp
++++ b/frameworks/native/audioutils/src/audio_utils.cpp
+@@ -17,6 +17,7 @@
+ #include <ctime>
+ #include <sstream>
+ #include <ostream>
++#include <string>
+ #include "audio_utils.h"
+ #include "audio_log.h"
+ #ifdef FEATURE_HITRACE_METER
+@@ -295,5 +296,36 @@ template bool GetSysPara(const char *key, int32_t &value);
+ template bool GetSysPara(const char *key, uint32_t &value);
+ template bool GetSysPara(const char *key, int64_t &value);
+ template bool GetSysPara(const char *key, std::string &value);
++
++FILE* AudioStreamDump::OpenFile(std::string filename){
++    std::string val;
++    FILE *file = nullptr;
++    GetSysPara(CTRL_AUDIOSTREAM_DUMP, val);
++    if ( val == "true" ) {
++        file = fopen((std::string("/data/media/") + filename).c_str(), "wb+");
++        if (file == nullptr) {
++            AUDIO_INFO_LOG("AudioStreamDump::OpenFile Failed:%{public}s", strerror(errno));
++        }
++    } else {
++        file = nullptr;
++    }
++    return file;
++}
++
++void AudioStreamDump::WriteFile(FILE* file, void* buf, size_t sz){
++    if (file == nullptr) { return; }
++    fwrite(buf, 1, sz, file);
++    if (ferror(file)) {
++        AUDIO_INFO_LOG("AudioStreamDump::WriteFile Failed:%{public}s", strerror(errno));
++    }
++}
++
++void AudioStreamDump::CloseFile(FILE** file){
++    if (*file) {
++        fclose(*file);
++        *file = nullptr;
++    }
++}
++
+ } // namespace AudioStandard
+ } // namespace OHOS

@@ -1,0 +1,3 @@
+D:/docs/开源鸿蒙学习文档/ohos交叉编译/test/build/CMakeFiles/examples.dir
+D:/docs/开源鸿蒙学习文档/ohos交叉编译/test/build/CMakeFiles/edit_cache.dir
+D:/docs/开源鸿蒙学习文档/ohos交叉编译/test/build/CMakeFiles/rebuild_cache.dir

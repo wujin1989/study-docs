@@ -1,0 +1,41 @@
+移植第三方库
+
+
+1  修改build/subsystem_config.json 增加子系统项的编译路径，
+        可以拷贝其他的编译项，修改几个关键字，比如。
+  "httpserver": {
+    "path": "third_party/archermind/httpserver",
+    "name": "httpserver"
+  }, 
+  
+  
+ 2 修改 third_party\archermind\product.json  
+    增加子系统的名字和api名字。
+    
+    
+    
+  3 修改build、compile_standard_whitelist.json 一个配置项 ，增加你的子系统的bundle.json 路劲 ,防止编译报错。
+  
+  
+      "bundle_subsystem_error": [
+        。。。。
+        "third_party/archermind/httpserver/bundle.json",
+        
+    ],
+    
+    
+    
+  4 复制一个现有的子系统的代码，参考修改 BUILD.gn  ，bundle.json 
+        比如复制 third_party/archermind/httpserver 整个目录，把代码删除，只保留这两个文件。
+        
+        
+        
+  5  可以用一个简易工具帮助生成 jni接口代码，和BUILD.gn 文件。
+  
+        napi_generator-linux -f *****.d.ts  -o out_new_api
+        
+        第一个参数是你定义的api接口文件，可以参考 archermind目录下的其他d.ts文件，自己手写一个。
+        第二个参数是输出文件的目录，你自己创建就可以了
+        
+  
+  

@@ -1,0 +1,5 @@
+1 param  设置或者读取系统配置等
+	param set bootevent.boot.completed true
+	param get 
+
+2 

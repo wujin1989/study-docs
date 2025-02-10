@@ -1,0 +1,94 @@
+1 安装依赖库
+	sudo apt-get install git;sudo apt-get install git-lfs;sudo apt-get install gperf;sudo apt-get install curl;sudo apt-get install gcc-multilib;sudo apt-get install g++-multilib;sudo apt-get install lib32ncurses5-dev;sudo apt-get install x11proto-core-dev;sudo apt-get install libx11-dev;sudo apt-get install lib32z1-dev;sudo apt-get install ccache;sudo apt-get install libgl1-mesa-dev;sudo apt-get install libxml2-utils;sudo apt-get install xsltproc;sudo apt-get install gnutls-bin;sudo apt-get install ruby;sudo apt-get install libncurses5
+	sudo apt-get install zlib1g-dev gcc-multilib g++-multilib gcc-arm-linux-gnueabi libc6-dev-i386 libc6-dev-amd64  x11proto-core-dev libx11-dev lib32z1-dev ccache libgl1-mesa-dev libxml2-utils xsltproc unzip m4 bc gnutls-bin python3.8 python3-pip ruby genext2fs device-tree-compiler make libffi-dev e2fsprogs pkg-config perl openssl libssl-dev libelf-dev libdwarf-dev u-boot-tools mtd-utils cpio doxygen liblz4-tool openjdk-8-jre gcc g++ texinfo dosfstools mtools default-jre default-jdk libncurses5 apt-utils wget scons python3.8-distutils tar rsync git-core libxml2-dev lib32z-dev grsync xxd libglib2.0-dev libpixman-1-dev kmod jfsutils reiserfsprogs xfsprogs squashfs-tools pcmciautils quota ppp libtinfo-dev libtinfo5 libncurses5-dev libncursesw5 libstdc++6 gcc-arm-none-eabi vim ssh locales libxinerama-dev libxcursor-dev libxrandr-dev libxi-dev
+	which python3.8 查看路径
+	
+	update-alternatives --install /usr/bin/python python /usr/bin/python3.10 1
+	update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1
+
+	sudo apt-get install python3-setuptools python3-pip -y
+	sudo pip3 install --upgrade pip
+
+2 配置git
+	git config --global user.name "jin.wu" && git config --global user.email "jin.wu@archermind" && git config --global credential.helper store
+
+
+3 添加ssh keys 到gitlab
+	ssh-keygen生成公钥
+	https://gitlab01.archermind.com/
+	
+4 搭建samba共享
+	gedit /etc/samba/smb.conf   
+	添加下面在末尾：
+		[Share]
+		comment = Shared Folder
+		path = /home/wujin/workspace
+		valid users = root
+		directory mask = 0775
+		create mask = 0775
+		public = yes
+		writable = yes
+		available = yes
+		browseable = yes
+		
+	smbpasswd -a root
+	
+	service smbd restart
+	
+5 下载代码
+	4.0 rk3588共建
+	export REPO_URL='https://mirrors.tuna.tsinghua.edu.cn/git/git-repo/'  && sudo curl https://mirrors.tuna.tsinghua.edu.cn/git/git-repo -o /usr/bin/repo && sudo chmod +x /usr/bin/repo && repo init -u git@gitlab01.archermind.com:harchermindy/harcheros/manifest.git -b rk3588-OpenHarmony-4.0-Release  && repo sync -c && repo forall -c 'git lfs pull'
+
+	4.0：
+	export REPO_URL='https://mirrors.tuna.tsinghua.edu.cn/git/git-repo/'  && sudo curl https://mirrors.tuna.tsinghua.edu.cn/git/git-repo -o /usr/bin/repo && sudo chmod +x /usr/bin/repo && repo init -u git@gitlab01.archermind.com:harchermindy/harcheros/manifest.git -b OpenHarmony-4.0-Release-HarcherOS && repo sync -c && repo forall -c 'git lfs pull'
+	
+	4.1：
+	export REPO_URL='https://mirrors.tuna.tsinghua.edu.cn/git/git-repo/'  && sudo curl https://mirrors.tuna.tsinghua.edu.cn/git/git-repo -o /usr/bin/repo && sudo chmod +x /usr/bin/repo && repo init -u git@gitlab01.archermind.com:harchermindy/harcheros/manifest.git -b OpenHarmony-4.1-Release-HarcherOS && repo sync -c && repo forall -c 'git lfs pull'
+	
+	5.0：
+	repo init -u git@gitlab01.archermind.com:harchermindy/harcheros/manifest.git -b OpenHarmony-5.0-Release-HarcherOS && repo sync -c && repo forall -c 'git lfs pull'
+
+	bash build/prebuilts_download.sh
+
+	./build.sh --product-name 'rk3568' --device-name 'em_r18_hongzos_2_0' --ccache  --gn-flags='--export-compile-commands'  --build-target wifidisplaynapi --fast-rebuild
+	./build.sh --product-name 'rk3588' --device-name 'rk3588_evt' --ccache --gn-flags='--export-compile-commands' --build-target wifidisplaynapi --fast-rebuild
+	./build.sh --product-name 'rk3588' --device-name 'xinuo_rk3588' --ccache --gn-flags='--export-compile-commands' --no-prebuilt-sdk
+	./build.sh --product-name 'rk3568' --device-name 'em_r18_hongzos_2_0' --ccache  --build-target xxx  --fast-rebuild 编译debug模块
+	./build.sh --product-name rk3588 --device-name em_r16 --ccache --gn-flags='--export-compile-commands' --no-prebuilt-sdk
+	./build.sh --product-name ss2386 --ccache  --gn-flags='--export-compile-commands' --no-prebuilt-sdk
+	
+6 更新代码
+	repo sync（有的时候repo sync -c 同步不行）
+
+	提交代码：
+	git push origin 本地分支（本地分支名字不能和远程一样）
+
+	git branch -vv 查看本地分支和远程分支关联情况
+
+开发者手机烧录
+https://laval.csdn.net/65c33699dafaf23eeaee8610.html
+
+开发者手机编译
+https://laval.csdn.net/65e01edcc8f8dc5d4626b09e.html
+
+7 4.0每日镜像
+http://10.51.11.185/
+
+8 海信项目文档
+https://hongz.archermind.com/document/index?document_id=1036
+
+dayu200镜像：
+https://ci.openharmony.cn/workbench/cicd/dailybuild/dailylist
+
+【腾讯文档】01. 项目任务
+https://docs.qq.com/sheet/DQ1ZTVnFqWlhxY2Jj?tab=zs2qch
+
+工时填报
+https://www.kdocs.cn/l/cv2I6GNVxV1H
+
+代码提交规范
+https://hongz.archermind.com/document/index?document_id=757
+
+8 常见编译错误：
+？？？ subsystem name config incorrect in '/home/wujin/workspace/oh4.0/third_party/archermind/archermindtools/edurfid/bundle.json', build file subsystem name is archermindtools,configured subsystem name is thirdparty.
+           这个的原因是没有加白名单

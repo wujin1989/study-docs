@@ -1,0 +1,91 @@
+AbstractScreenController::CreateVirtualScreen
+	RSRenderServiceConnection::CreateVirtualScreen
+		RSScreenManager::CreateVirtualScreen
+			RSScreen::RSScreen
+	AbstractScreenController::InitVirtualScreen
+	AbstractScreenController::NotifyScreenConnected
+	
+	
+	
+RSRenderServiceConnection::CreateNodeAndSurface
+
+
+
+
+RSRenderServiceListener::OnBufferAvailable
+
+Q: DisplayNode 怎么创建的？
+A: 物理屏幕连接的时候创建，虚拟屏幕是调用makemirror或者makeexpand的时候创建
+
+AbstractScreenController::ProcessScreenConnected
+	AbstractScreenController::AddToGroupLocked
+		AbstractScreenGroup::AddChild
+			AbstractScreen::InitRSDisplayNode
+				RSDisplayNode::Create
+				
+AbstractScreenController::MakeMirror
+	AbstractScreenController::ChangeScreenGroup
+		AbstractScreenController::AddScreenToGroup
+			AbstractScreenGroup::AddChild
+				AbstractScreen::InitRSDisplayNode
+					RSDisplayNode::Create
+
+
+///////////////////////////////////////////////////////// 渲染合成mainloop	
+
+///////////////////////////////////////////// 虚拟屏幕流程	
+RSMainThread::ConsumeAndUpdateAllNodes
+	RSRenderNodeMap::TraverseSurfaceNodes
+		RSBaseRenderUtil::ConsumeAndUpdateBuffer
+			ConsumerSurface::AcquireBuffer
+			RSSurfaceHandler::ConsumeAndUpdateBuffer			//这里设置buffer，创建egl image的buffer就是从这里设置
+			
+RSMainThread::Render
+	RSRenderNode::Prepare    						//从根节点遍历
+		RSRenderServiceVisitor::PrepareChildren		RSDisplayRenderNode  ---》 RSSurfaceRenderNode
+			RSDisplayRenderNode::Prepare
+				RSRenderServiceVisitor::PrepareDisplayRenderNode			//这里注意如果有mirror，则mirrorsource是主屏幕
+					RSRenderServiceVisitor::UpdateDisplayNodeCompositeType
+					RSRenderServiceVisitor::CreateCanvas
+					RSSurfaceRenderNode::Prepare
+						RSRenderServiceVisitor::PrepareSurfaceRenderNode
+								
+	RSMainThread::CalcOcclusion
+	
+	RSRenderNode::Process
+		RSRenderServiceVisitor::ProcessChildren							//RSDisplayRenderNode  ---》 RSSurfaceRenderNode
+			RSDisplayRenderNode::Process
+				RSRenderServiceVisitor::ProcessDisplayRenderNode
+					RSRenderServiceVisitor::CreateProcessor
+						RSProcessorFactory::CreateProcessor
+						RSVirtualScreenProcessor::Init				//虚拟屏幕合成
+							RSProcessor::SetMirrorScreenSwap
+							RSScreenManager::GetProducerSurface
+							RSBaseRenderEngine::RequestFrame		//这里是一个完整的桌面视频帧。注意硬件合成里回退到gpu才有这个。
+					
+					RSSurfaceRenderNode::Process
+						RSRenderServiceVisitor::ProcessSurfaceRenderNode
+							RSVirtualScreenProcessor::ProcessSurface
+								RSDividedRenderUtil::CreateBufferDrawParam			//准备渲染的buffer，buffer从surface的消费者拿，即拿到应用绘制的buffer
+								RSRenderEngine::DrawSurfaceNodeWithParams			//绘制buffer到egl image，这里往屏幕的生产者buffer中写
+									RSBaseRenderEngine::DrawImage
+										RSBaseRenderEngine::CreateEglImageFromBuffer		//buffer从surface的消费者拿，ConsumeAndUpdateAllNodes里设置buffer
+										RSPaintFilterCanvasBase::DrawImageRect			//EGLImage实际就是一个跨屏台的纹理，和opengl纹理绑定。往canvas里写数据，canvas是一个生产者，消费者是renderserive
+					RSVirtualScreenProcessor::PostProcess
+						RSSurfaceOhosGl::FlushFrame
+							RenderContext::RenderFrame
+							RenderContext::SwapBuffers   //里面会调用NativeWindowRequestBuffer，然后把绘制内容填进去。然后native window就有数据了(生产者)，也就是processor里传进的surface就有数据了
+		
+		
+		
+///////////////////////////////////////////// 物理屏幕流程	
+物理屏幕合成渲染流程和虚拟机差不多：
+1 先用hwc合成
+2 hwc不能合成的用gpu合成，创建一个fbsurface然后走redraw流程
+	
+/////////////////////////////////////////////////////////////  渲染树 ///////////////////////////		
+																	rootNode
+																		|
+									displayNode1                   displayNode2                 displayNode3
+										 |                  		    |                            |
+						   surfaceNode1    surfaceNode2    surfaceNode1    surfaceNode2     surfaceNode1    surfaceNode2

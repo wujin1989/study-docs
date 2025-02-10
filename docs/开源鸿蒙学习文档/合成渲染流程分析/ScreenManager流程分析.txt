@@ -1,0 +1,49 @@
+RSRenderService::Init
+	RSScreenManager::GetInstance
+	RSScreenManager::Init
+		HdiBackend::GetInstance
+		HdiBackend::RegScreenHotplug      ---> RSScreenManager::OnHotPlug
+											       RSScreenManager::OnHotPlugEvent
+													   pendingHotPlugEvents_.emplace_back(ScreenHotPlugEvent{output, connected});
+													   RSMainThread::RequestNextVSync
+			HdiBackend::InitDevice
+				HdiDeviceImpl::Init
+			HdiDeviceImpl::RegHotPlugCallback    	---> HdiBackend::OnHdiBackendHotPlugEvent
+															HdiBackend::OnHdiBackendConnected
+																HdiBackend::CreateHdiOutput
+																	HdiOutput::CreateHdiOutput
+																		HdiOutput::Init
+																			HdiFramebufferSurface::CreateFramebufferSurface
+																				HdiFramebufferSurface::CreateSurface
+																					ConsumerSurface::Init
+																						producer_ = new BufferQueueProducer(queue_);
+																						consumer_ = new BufferQueueConsumer(queue_);
+																					ProducerSurface::Init
+																					ConsumerSurface::RegisterConsumerListener
+																						BufferQueueConsumer::RegisterConsumerListener
+																							BufferQueue::RegisterConsumerListener  //当有buffer可用获得通知
+																		outputs_.emplace(screenId, newOutput);	//显示器和output关联
+																HdiBackend::OnScreenHotplug    ---> RSScreenManager::OnHotPlug
+						
+					
+		HdiBackend::RegHwcDeadListener    //RSScreenManager::OnHwcDead
+		RSScreenManager::ProcessScreenHotPlugEvents
+			RSScreenManager::ProcessScreenConnectedLocked
+				RSScreen::RSScreen
+					RSScreen::PhysicalScreenInit
+						HdiScreen::CreateHdiScreen
+						HdiScreen::Init
+							HdiDeviceImpl::RegScreenVBlankCallback    --->   HdiScreen::OnVsync
+							HdiDeviceImpl::SetScreenVsyncEnabled
+				VSyncSampler::VSyncSampler
+				VSyncSampler::RegSetScreenVsyncEnabledCallback   --->  RSScreen::SetScreenVsyncEnabled
+				connectedIds_.emplace_back(id);
+				
+			RSScreenManager::AddScreenToHgm
+				HgmCore::Init
+				HgmCore::AddScreen
+						
+			CustomScreenChangeCallback::OnScreenChanged		
+				AbstractScreenController::OnRsScreenConnectionChange	//这个回调是DMS启动时候注册的，参考<<DMS启动流程分析.txt>>
+					
+						

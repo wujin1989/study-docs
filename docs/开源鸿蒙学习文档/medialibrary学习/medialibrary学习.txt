@@ -1,0 +1,6 @@
+这两个路径是一样的，/storage/media/100/local/files/和/mnt/hmdfs/100/account/device_view/local/files都是指向了/mnt/hmdfs/100/account/merge_view，可以通过df -h . 查看挂载路径
+
+hdc file send xxx.mp4 /storage/media/100/local/files/Videos
+hdc file send xxx.mp4 /mnt/hmdfs/100/account/device_view/local/files/Videos
+
+device_view 是分设备的视图，local 是本地⽂件视图，另外⼀个是远端设备的⽂件视图；merge_view 是合并视图，多个设备的⽂件都在这⼀个⽬录。

@@ -1,0 +1,111 @@
+CameraHostVdiImpl::Init
+	V4L2DeviceManager::Init
+	CameraDeviceVdiImpl::CreateCameraDevice
+		PipelineCore::Init
+			HostStreamMgrImpl::HostStreamMgrImpl
+			StreamPipelineCore::StreamPipelineCore
+		CameraDeviceVdiImpl::CameraDeviceVdiImpl
+		
+StreamOperatorVdiImpl::Init
+	StreamPipelineCore::Init
+		StreamPipelineStrategy::StreamPipelineStrategy
+		StreamPipelineBuilder::StreamPipelineBuilder
+		StreamPipelineDispatcher::StreamPipelineDispatcher
+		
+
+StreamOperatorVdiImpl::CreateStreams
+	StreamVideo::StreamVideo
+	StreamTunnel::AttachBufferQueue
+	StreamBase::AttachStreamTunnel
+	
+StreamOperatorVdiImpl::CommitStreams
+	StreamBase::CommitStream
+		BufferPool::Init                      //
+		BufferPool::PrepareBuffer             // 由于我们分配的是CAMERA_BUFFER_SOURCE_TYPE_EXTERNAL  所以不用这个bufferpool的内部分配buffer
+		
+		HostStreamMgrImpl::CreateHostStream
+			HostStreamImpl::HostStreamImpl
+				callback_ = StreamBase::HandleResult               //这个地方就是一个关键，主机流啥都不干，就是注册一个回调下去，这个回调能拿到数据给上层
+				
+	StreamPipelineCore::CreatePipeline
+		StreamPipelineStrategy::CombineSpecs
+		streamPipelineBuilder::Build
+			V4L2SourceNode::V4L2SourceNode
+			ForkNode::ForkNode
+			RKCodecNode::RKCodecNode
+			SinkNode::SinkNode
+				cb_ = StreamBase::HandleResult				//sinkNode回调hostStream注册的callback，然后传给上层
+			
+StreamOperatorVdiImpl::Capture	
+	
+		StreamBase::AddRequest
+			StreamBase::StartStream
+				StreamTunnel::NotifyStart
+				StreamPipelineCore::Prepare
+					StreamPipelineDispatcher::Prepare
+						V4L2SourceNode::init
+						ForkNode::init
+						RKCodecNode::init
+						SinkNode::init
+																										
+				StreamPipelineCore::Start
+					StreamPipelineDispatcher::Start
+						V4L2SourceNode::Start
+							SensorController::Start
+								HosV4L2Dev::start   //open v4l2 设备
+								HosV4L2Dev::ReqBuffers //v4l2申请buffer
+							SourceNode::Start
+								V4L2SourceNode::SetBufferCallback					//从v4l2里回调上来
+								SourceNode::PortHandler::StartCollectBuffers
+									SourceNode::PortHandler::CollectBuffers
+										BufferPool::AcquireBuffer	//拿到一个显存buffer，之前capture调用后会BufferPool::AddBuffer
+										V4L2SourceNode::ProvideBuffers
+											SensorController::SendFrameBuffer		//把buffer 放到v4l2的queue，开启v4l2的采集
+												HosV4L2Dev::loopBuffers
+													SensorController::BufferCallback
+														SourceNode::OnPackBuffer
+															SourceNode::PortHandler::OnBuffer   //拿到v4l2 buffer
+												
+								SourceNode::PortHandler::StartDistributeBuffers		//拿到v4l2 buffer 转发给下一个节点
+									ForkNode::DeliverBuffer	
+									RKCodecNode::DeliverBuffer
+									SinkNode::DeliverBuffer
+										StreamBase::HandleResult
+											StreamBase::OnFrame
+												StreamBase::ReceiveBuffer
+													BufferPool::ReturnBuffer
+													StreamTunnel::PutBuffer
+														BufferQueue::FlushBuffer
+															VideoCaptureFilter::OnBufferAvailable     //通知视频录制程序buffer好了
+									
+						ForkNode::Start
+						RKCodecNode::Start
+						SinkNode::Start
+			cv_.notify_one();					====>                  StreamBase::HandleRequest                  //处理用户下发的capture动作
+																			CaptureRequest::Process
+																				StreamVideo::Capture
+																					StreamBase::Capture
+																						StreamBase::DeliverStreamBuffer
+																							StreamTunnel::GetBuffer
+																								StreamTunnel::GetCameraBufferAndUpdateInfo
+																									ImageBuffer::ImageBuffer  //camera Buffer
+																							BufferPool::AddBuffer    //把surface buffer放进这里
+																						StreamPipelineCore::Capture
+																							StreamPipelineDispatcher::Capture
+																								V4L2SourceNode::Capture
+																								ForkNode::Capture
+																								RKCodecNode::Capture
+																								SinkNode::Capture
+						
+	
+						
+					
+					
+camera dump：
+hdc shell mount -o rw,remount /data
+hdc shell chmod 777 /data/local/tmp/ -R
+然后把dump.config放到/data/local/tmp
+
+# hidumper -s 5100 -a '-host camera_host -o'
+# hidumper -s 5100 -a '-host camera_host -b'
+# hidumper -s 5100 -a '-host camera_host -m'

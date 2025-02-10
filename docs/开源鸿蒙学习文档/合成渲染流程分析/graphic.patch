@@ -1,0 +1,490 @@
+diff --git a/frameworks/bootanimation/src/boot_animation_operation.cpp b/frameworks/bootanimation/src/boot_animation_operation.cpp
+index 78985e332f..f8df8a1372 100644
+--- a/frameworks/bootanimation/src/boot_animation_operation.cpp
++++ b/frameworks/bootanimation/src/boot_animation_operation.cpp
+@@ -203,7 +203,7 @@ bool BootAnimationOperation::InitRsSurface()
+     rsSurface_ = Rosen::RSSurfaceFactory::CreateRSSurface(Rosen::PlatformName::OHOS, surface, drawingContext);
+     rsSurface_->SetRenderContext(renderContext);
+ #else
+-    rsSurface_ = OHOS::Rosen::RSSurfaceExtractor::ExtractRSSurface(rsSurfaceNode_);
++    rsSurface_ = OHOS::Rosen::RSSurfaceExtractor::ExtractRSSurface(rsSurfaceNode_);//RSSurfaceOhosGl
+     if (rsSurface_ == nullptr) {
+         LOGE("rsSurface is nullptr");
+         return false;
+diff --git a/frameworks/bootanimation/src/boot_picture_player.cpp b/frameworks/bootanimation/src/boot_picture_player.cpp
+index 12b5d7c575..ca7612b437 100644
+--- a/frameworks/bootanimation/src/boot_picture_player.cpp
++++ b/frameworks/bootanimation/src/boot_picture_player.cpp
+@@ -139,7 +139,7 @@ bool BootPicturePlayer::Draw()
+     }
+     picCurNo_ = picCurNo_ + 1;
+     ROSEN_TRACE_BEGIN(HITRACE_TAG_GRAPHIC_AGP, "BootAnimation::Draw RequestFrame");
+-    auto frame = rsSurface_->RequestFrame(windowWidth_, windowHeight_);
++    auto frame = rsSurface_->RequestFrame(windowWidth_, windowHeight_);//RSSurfaceOhosGl
+     ROSEN_TRACE_END(HITRACE_TAG_GRAPHIC_AGP);
+     if (frame == nullptr) {
+         LOGE("draw frame is nullptr");
+@@ -159,7 +159,7 @@ bool BootPicturePlayer::Draw()
+     ROSEN_TRACE_END(HITRACE_TAG_GRAPHIC_AGP);
+ #else
+     rsSurfaceFrame_ = std::move(frame);
+-    auto canvas = rsSurfaceFrame_->GetCanvas();
++    auto canvas = rsSurfaceFrame_->GetCanvas();//RSSurfaceFrameOhosGl
+     OnDraw(canvas, picCurNo_);
+     ROSEN_TRACE_BEGIN(HITRACE_TAG_GRAPHIC_AGP, "BootAnimation::Draw FlushFrame");
+     rsSurface_->FlushFrame(rsSurfaceFrame_);
+diff --git a/rosen/modules/2d_graphics/src/drawing/image/gpu_context.cpp b/rosen/modules/2d_graphics/src/drawing/image/gpu_context.cpp
+index 73a8c4edc4..39a7607b94 100644
+--- a/rosen/modules/2d_graphics/src/drawing/image/gpu_context.cpp
++++ b/rosen/modules/2d_graphics/src/drawing/image/gpu_context.cpp
+@@ -28,7 +28,7 @@ GPUContext::GPUContext() : impl_(ImplFactory::CreateGPUContextImpl()) {}
+ 
+ bool GPUContext::BuildFromGL(const GPUContextOptions& options)
+ {
+-    return impl_->BuildFromGL(options);
++    return impl_->BuildFromGL(options);//SkiaGPUContext
+ }
+ 
+ #ifdef RS_ENABLE_VK
+diff --git a/rosen/modules/2d_graphics/src/render_context/render_context.cpp b/rosen/modules/2d_graphics/src/render_context/render_context.cpp
+index 2cb32a1bf1..33cf332abc 100644
+--- a/rosen/modules/2d_graphics/src/render_context/render_context.cpp
++++ b/rosen/modules/2d_graphics/src/render_context/render_context.cpp
+@@ -382,8 +382,8 @@ std::shared_ptr<Drawing::Surface> RenderContext::AcquireSurface(int width, int h
+         bufferInfo.colorType = Drawing::COLORTYPE_RGBA_1010102;
+     }
+ 
+-    surface_ = std::make_shared<Drawing::Surface>();
+-    if (!surface_->Bind(bufferInfo)) {
++    surface_ = std::make_shared<Drawing::Surface>();//SkSurface
++    if (!surface_->Bind(bufferInfo)) {//FBO
+         LOGW("surface_ is nullptr");
+         surface_ = nullptr;
+         return nullptr;
+diff --git a/rosen/modules/composer/hdi_backend/src/hdi_output.cpp b/rosen/modules/composer/hdi_backend/src/hdi_output.cpp
+index 5d1af213ba..e396f85cdb 100644
+--- a/rosen/modules/composer/hdi_backend/src/hdi_output.cpp
++++ b/rosen/modules/composer/hdi_backend/src/hdi_output.cpp
+@@ -507,7 +507,7 @@ int32_t HdiOutput::CommitAndGetReleaseFence(
+     layersId_.clear();
+     fences_.clear();
+     return device_->CommitAndGetReleaseFence(
+-        screenId_, fbFence, skipState, needFlush, layersId_, fences_, isValidated);
++        screenId_, fbFence, skipState, needFlush, layersId_, fences_, isValidated);//HdiDeviceImpl
+ }
+ 
+ int32_t HdiOutput::UpdateInfosAfterCommit(sptr<SyncFence> fbFence)
+diff --git a/rosen/modules/render_service/core/pipeline/rs_base_render_engine.cpp b/rosen/modules/render_service/core/pipeline/rs_base_render_engine.cpp
+index 1581bb2c34..b607ed6a5c 100644
+--- a/rosen/modules/render_service/core/pipeline/rs_base_render_engine.cpp
++++ b/rosen/modules/render_service/core/pipeline/rs_base_render_engine.cpp
+@@ -312,7 +312,7 @@ std::unique_ptr<RSRenderFrame> RSBaseRenderEngine::RequestFrame(
+     RSTagTracker tagTracker(skContext_.get(), RSTagTracker::TAGTYPE::TAG_ACQUIRE_SURFACE);
+ #endif
+     rsSurface->SetColorSpace(config.colorGamut);
+-    rsSurface->SetSurfacePixelFormat(config.format);
++    rsSurface->SetSurfacePixelFormat(config.format);//RSSurfaceOhosGl
+     if (frameContextConfig.isVirtual) {
+         RS_LOGD("RSBaseRenderEngine::RequestFrame: Mirror Screen Set Timeout to 0.");
+         rsSurface->SetTimeOut(frameContextConfig.timeOut);
+@@ -328,7 +328,7 @@ std::unique_ptr<RSRenderFrame> RSBaseRenderEngine::RequestFrame(
+     if (frameContextConfig.isProtected) {
+         bufferUsage |= BUFFER_USAGE_PROTECTED;
+     }
+-    rsSurface->SetSurfaceBufferUsage(bufferUsage);
++    rsSurface->SetSurfaceBufferUsage(bufferUsage);//RSSurfaceOhosGl
+ 
+     // check if we can use GPU context
+ #if defined(NEW_RENDER_CONTEXT)
+@@ -364,7 +364,7 @@ std::unique_ptr<RSRenderFrame> RSBaseRenderEngine::RequestFrame(
+     }
+ #endif
+ #endif
+-    auto surfaceFrame = rsSurface->RequestFrame(config.width, config.height, 0, useAFBC,
++    auto surfaceFrame = rsSurface->RequestFrame(config.width, config.height, 0, useAFBC,//RSSurfaceOhosGl RSSurfaceFrameOhosGl
+         frameContextConfig.isProtected);
+     RS_OPTIONAL_TRACE_END();
+     if (surfaceFrame == nullptr) {
+diff --git a/rosen/modules/render_service/core/pipeline/rs_base_render_engine.h b/rosen/modules/render_service/core/pipeline/rs_base_render_engine.h
+index fc2aff6785..65e584f522 100644
+--- a/rosen/modules/render_service/core/pipeline/rs_base_render_engine.h
++++ b/rosen/modules/render_service/core/pipeline/rs_base_render_engine.h
+@@ -99,7 +99,7 @@ public:
+     void Flush() noexcept
+     {
+         if (targetSurface_ != nullptr && surfaceFrame_ != nullptr) {
+-            targetSurface_->FlushFrame(surfaceFrame_);
++            targetSurface_->FlushFrame(surfaceFrame_);//RSSurfaceOhosGl
+             targetSurface_ = nullptr;
+             surfaceFrame_ = nullptr;
+         }
+diff --git a/rosen/modules/render_service/core/pipeline/rs_base_render_util.cpp b/rosen/modules/render_service/core/pipeline/rs_base_render_util.cpp
+index 6b3bcb295a..35a69b313b 100644
+--- a/rosen/modules/render_service/core/pipeline/rs_base_render_util.cpp
++++ b/rosen/modules/render_service/core/pipeline/rs_base_render_util.cpp
+@@ -864,6 +864,7 @@ BufferRequestConfig RSBaseRenderUtil::GetFrameBufferRequestConfig(const ScreenIn
+         config.usage |= BUFFER_USAGE_PROTECTED;
+     }
+     config.timeout = 0;
++    RS_LOGE("wujin #### rotation: %{public}d, w: %{public}d, h: %{public}d, format: %{public}d", screenInfo.rotation, config.width, config.height, config.format);
+     return config;
+ }
+ 
+@@ -945,7 +946,7 @@ bool RSBaseRenderUtil::ConsumeAndUpdateBuffer(
+         surfaceHandler.ConsumeAndUpdateBuffer(surfaceHandler.GetBufferFromCache(vsyncTimestamp));
+         return true;
+     }
+-    auto consumer = surfaceHandler.GetConsumer();
++    auto consumer = surfaceHandler.GetConsumer();//ConsumerSurface
+     if (consumer == nullptr) {
+         return false;
+     }
+diff --git a/rosen/modules/render_service/core/pipeline/rs_composer_adapter.cpp b/rosen/modules/render_service/core/pipeline/rs_composer_adapter.cpp
+index 4ef2b059d8..8e0e11a5e2 100644
+--- a/rosen/modules/render_service/core/pipeline/rs_composer_adapter.cpp
++++ b/rosen/modules/render_service/core/pipeline/rs_composer_adapter.cpp
+@@ -104,7 +104,7 @@ bool RSComposerAdapter::Init(const RSDisplayRenderNode& node, const ScreenInfo&
+ 
+     fallbackCb_ = cb;
+     auto onPrepareCompleteFunc = [this](auto& surface, const auto& param, void* data) {
+-        OnPrepareComplete(surface, param, data);
++        OnPrepareComplete(surface, param, data);//这里的surface是fbsurface
+     };
+     hdiBackend_->RegPrepareComplete(onPrepareCompleteFunc, this);
+ 
+diff --git a/rosen/modules/render_service/core/pipeline/rs_physical_screen_processor.cpp b/rosen/modules/render_service/core/pipeline/rs_physical_screen_processor.cpp
+index 7a17f6a152..79bb1dad84 100644
+--- a/rosen/modules/render_service/core/pipeline/rs_physical_screen_processor.cpp
++++ b/rosen/modules/render_service/core/pipeline/rs_physical_screen_processor.cpp
+@@ -102,7 +102,7 @@ void RSPhysicalScreenProcessor::Redraw(const sptr<Surface>& surface, const std::
+         canvas->ConcatMatrix(screenTransformMatrix_);
+     }
+ 
+-    renderEngine_->DrawLayers(*canvas, layers, forceCPU);
++    renderEngine_->DrawLayers(*canvas, layers, forceCPU);//RSRenderEngine
+     renderFrame->Flush();
+     RS_LOGD("RsDebug RSPhysicalScreenProcessor::Redraw flush frame buffer end");
+ }
+diff --git a/rosen/modules/render_service/core/pipeline/rs_processor.cpp b/rosen/modules/render_service/core/pipeline/rs_processor.cpp
+index d4add215a3..e768ec71dd 100644
+--- a/rosen/modules/render_service/core/pipeline/rs_processor.cpp
++++ b/rosen/modules/render_service/core/pipeline/rs_processor.cpp
+@@ -183,6 +183,7 @@ bool RSProcessor::Init(RSDisplayRenderNode& node, int32_t offsetX, int32_t offse
+     if (mirroredId_ != INVALID_SCREEN_ID) {
+         mirroredScreenInfo_ = screenManager->QueryScreenInfo(mirroredId_);
+         mirroredScreenInfo_.rotation = mirrorNode->GetRotation();
++        RS_LOGE("wujin #### mirrorNode rotation: %{public}d, w: %{public}d, h: %{public}d", mirroredScreenInfo_.rotation, mirroredScreenInfo_.width, mirroredScreenInfo_.height);
+         CalculateMirrorAdaptiveMatrix();
+     }
+ 
+@@ -198,11 +199,22 @@ void RSProcessor::SetMirrorScreenSwap(const RSDisplayRenderNode& node)
+         RS_LOGE("RSProcessor::Init: Get mirroredNode failed");
+         return;
+     }
+-    if (mirroredNode->GetRotation() == ScreenRotation::ROTATION_90 ||
+-        mirroredNode->GetRotation() == ScreenRotation::ROTATION_270) {
++    RS_LOGE("wujin #### before screen-width: %{public}d, screen-height: %{public}d, frame-width: %{public}d, frame-height: %{public}d", 
++        screenInfo_.width, screenInfo_.height, renderFrameConfig_.width, renderFrameConfig_.height);
++    // if (mirroredNode->GetRotation() == ScreenRotation::ROTATION_90 ||
++    //     mirroredNode->GetRotation() == ScreenRotation::ROTATION_270) {
++    //     RS_LOGE("wujin #### rotation..................................");
++    //     std::swap(screenInfo_.width, screenInfo_.height);
++    //     std::swap(renderFrameConfig_.width, renderFrameConfig_.height);
++    // }
++    if (screenInfo_.rotation == ScreenRotation::ROTATION_90 ||
++        screenInfo_.rotation == ScreenRotation::ROTATION_270) {
++        RS_LOGE("wujin #### rotation..................................");
+         std::swap(screenInfo_.width, screenInfo_.height);
+         std::swap(renderFrameConfig_.width, renderFrameConfig_.height);
+     }
++    RS_LOGE("wujin #### after screen-width: %{public}d, screen-height: %{public}d, frame-width: %{public}d, frame-height: %{public}d", 
++        screenInfo_.width, screenInfo_.height, renderFrameConfig_.width, renderFrameConfig_.height);
+ }
+ 
+ void RSProcessor::CalculateScreenTransformMatrix(const RSDisplayRenderNode& node)
+@@ -291,7 +303,8 @@ void RSProcessor::CalculateMirrorAdaptiveMatrix()
+     float rotation = 0.0f;
+     float offsetX = 0.0f;
+     float offsetY = 0.0f;
+-
++    RS_LOGE("wujin ####  screeninfo.rotationW: %{public}d, screeninfo.rotationH: %{public}d, mirroredScreenInfo.rotationW: %{public}d, mirroredScreenInfo.rotationH: %{public}d", screenInfo_.GetRotatedWidth(), screenInfo_.GetRotatedHeight(), mirroredScreenInfo_.GetRotatedWidth(), mirroredScreenInfo_.GetRotatedHeight());
++    RS_LOGE("wujin #### mirrorAdaptiveCoefficient_: %{public}f, screenInfo_.rotation: %{public}d, mirroredScreenInfo_.rotation: %{public}d", mirrorAdaptiveCoefficient_, screenInfo_.rotation, mirroredScreenInfo_.rotation);
+     switch (screenInfo_.rotation) {
+         case ScreenRotation::ROTATION_90:
+             rotation = -90.0f;
+diff --git a/rosen/modules/render_service/core/pipeline/rs_render_service_connection.cpp b/rosen/modules/render_service/core/pipeline/rs_render_service_connection.cpp
+index cfac815bfb..45b2a1fad8 100644
+--- a/rosen/modules/render_service/core/pipeline/rs_render_service_connection.cpp
++++ b/rosen/modules/render_service/core/pipeline/rs_render_service_connection.cpp
+@@ -338,7 +338,7 @@ sptr<Surface> RSRenderServiceConnection::CreateNodeAndSurface(const RSSurfaceRen
+         surface->GetUniqueId(), surfaceName.c_str());
+     auto defaultUsage = surface->GetDefaultUsage();
+     surface->SetDefaultUsage(defaultUsage | BUFFER_USAGE_MEM_DMA | BUFFER_USAGE_HW_COMPOSER);
+-    node->GetRSSurfaceHandler()->SetConsumer(surface);
++    node->GetRSSurfaceHandler()->SetConsumer(surface);//RSSurfaceHandler
+     RSMainThread* mainThread = mainThread_;
+     std::function<void()> registerNode = [node, mainThread]() -> void {
+         if (auto preNode = mainThread->GetContext().GetNodeMap().GetRenderNode(node->GetId())) {
+diff --git a/rosen/modules/render_service/core/pipeline/rs_render_service_visitor.cpp b/rosen/modules/render_service/core/pipeline/rs_render_service_visitor.cpp
+index 27ba1234f1..a91de827b8 100644
+--- a/rosen/modules/render_service/core/pipeline/rs_render_service_visitor.cpp
++++ b/rosen/modules/render_service/core/pipeline/rs_render_service_visitor.cpp
+@@ -45,14 +45,14 @@ RSRenderServiceVisitor::~RSRenderServiceVisitor() {}
+ void RSRenderServiceVisitor::PrepareChildren(RSRenderNode& node)
+ {
+     for (auto& child : *node.GetSortedChildren()) {
+-        child->Prepare(shared_from_this());
++        child->Prepare(shared_from_this());//RSDisplayRenderNode   RSSurfaceRenderNode
+     }
+ }
+ 
+ void RSRenderServiceVisitor::ProcessChildren(RSRenderNode& node)
+ {
+     for (auto& child : *node.GetSortedChildren()) {
+-        child->Process(shared_from_this());
++        child->Process(shared_from_this());//RSDisplayRenderNode    RSSurfaceRenderNode
+     }
+ }
+ 
+@@ -68,7 +68,7 @@ void RSRenderServiceVisitor::PrepareDisplayRenderNode(RSDisplayRenderNode& node)
+     }
+     offsetX_ = node.GetDisplayOffsetX();
+     offsetY_ = node.GetDisplayOffsetY();
+-    ScreenInfo curScreenInfo = screenManager->QueryScreenInfo(node.GetScreenId());
++    ScreenInfo curScreenInfo = screenManager->QueryScreenInfo(node.GetScreenId());//RSScreenManager::QueryScreenInfoLocked
+     UpdateDisplayNodeCompositeType(node, curScreenInfo);
+    
+     ResetSurfaceNodeAttrsInDisplayNode(node);
+@@ -130,7 +130,7 @@ void RSRenderServiceVisitor::ProcessDisplayRenderNode(RSDisplayRenderNode& node)
+ 
+     curDisplayNode_ = node.shared_from_this()->ReinterpretCastTo<RSDisplayRenderNode>();
+ 
+-    if (!CreateProcessor(node)) {
++    if (!CreateProcessor(node)) {//RSPhysicalScreenProcessor
+         return;
+     }
+ 
+@@ -157,7 +157,7 @@ void RSRenderServiceVisitor::ProcessDisplayRenderNode(RSDisplayRenderNode& node)
+         }
+     }
+     foregroundSurfaces_.clear();
+-    processor_->PostProcess();
++    processor_->PostProcess();//RSPhysicalScreenProcessor  RSVirtualScreenProcessor
+ }
+ 
+ void RSRenderServiceVisitor::PrepareSurfaceRenderNode(RSSurfaceRenderNode& node)
+@@ -236,7 +236,7 @@ void RSRenderServiceVisitor::ProcessSurfaceRenderNode(RSSurfaceRenderNode& node)
+     auto func = [nodePtr = node.ReinterpretCastTo<RSSurfaceRenderNode>(), this]() {
+         nodePtr->GetMutableRSSurfaceHandler()->SetGlobalZOrder(globalZOrder_);
+         globalZOrder_ = globalZOrder_ + 1;
+-        processor_->ProcessSurface(*nodePtr);
++        processor_->ProcessSurface(*nodePtr);//RSPhysicalScreenProcessor    RSVirtualScreenProcessor
+     };
+     if (node.GetIsForeground()) {
+         auto parent = node.GetParent().lock();
+@@ -302,7 +302,7 @@ bool RSRenderServiceVisitor::CreateProcessor(RSDisplayRenderNode& node)
+     }
+ 
+     if (!processor_->Init(node, node.GetDisplayOffsetX(), node.GetDisplayOffsetY(),
+-        mirrorNode ? mirrorNode->GetScreenId() : INVALID_SCREEN_ID, processorRenderEngine_)) {
++        mirrorNode ? mirrorNode->GetScreenId() : INVALID_SCREEN_ID, processorRenderEngine_)) {//RSPhysicalScreenProcessor RSVirtualScreenProcessor
+         RS_LOGE("RSRenderServiceVisitor::ProcessDisplayRenderNode: processor init failed!");
+         return false;
+     }
+diff --git a/rosen/modules/render_service/core/pipeline/rs_virtual_screen_processor.cpp b/rosen/modules/render_service/core/pipeline/rs_virtual_screen_processor.cpp
+index 8c825b139b..b4047a634e 100644
+--- a/rosen/modules/render_service/core/pipeline/rs_virtual_screen_processor.cpp
++++ b/rosen/modules/render_service/core/pipeline/rs_virtual_screen_processor.cpp
+@@ -57,7 +57,7 @@ bool RSVirtualScreenProcessor::Init(RSDisplayRenderNode& node, int32_t offsetX,
+             node.GetScreenId());
+         return false;
+     }
+-    producerSurface_ = screenManager->GetProducerSurface(node.GetScreenId());
++    producerSurface_ = screenManager->GetProducerSurface(node.GetScreenId());//RSScreenManager
+     if (producerSurface_ == nullptr) {
+         RS_LOGE("RSVirtualScreenProcessor::Init for Screen(id %{public}" PRIu64 "): ProducerSurface is null!",
+             node.GetScreenId());
+@@ -65,17 +65,20 @@ bool RSVirtualScreenProcessor::Init(RSDisplayRenderNode& node, int32_t offsetX,
+     }
+ 
+     bool forceCPU = false;
+-    renderFrame_ = renderEngine_->RequestFrame(producerSurface_, renderFrameConfig_, forceCPU, false);
++    renderFrame_ = renderEngine_->RequestFrame(producerSurface_, renderFrameConfig_, forceCPU, false);//RSSurfaceFrameOhosGl  RSRenderEngine
+     if (renderFrame_ == nullptr) {
+         RS_LOGE("RSVirtualScreenProcessor::Init: renderFrame_ is null!");
+         return false;
+     }
+-    canvas_ = renderFrame_->GetCanvas();
++    canvas_ = renderFrame_->GetCanvas();//RSSurfaceFrameOhosGl
+     if (canvas_ == nullptr) {
+         return false;
+     }
+-    canvas_->ConcatMatrix(screenTransformMatrix_);
+-
++    if (mirroredScreenInfo_.id != INVALID_SCREEN_ID) {
++        canvas_->ConcatMatrix(mirrorAdaptiveMatrix_);
++    } else {
++        canvas_->ConcatMatrix(screenTransformMatrix_);
++    }
+     return true;
+ }
+ 
+@@ -88,7 +91,7 @@ void RSVirtualScreenProcessor::PostProcess()
+     if (isSecurityDisplay_ && displayHasSecSurface_) {
+         canvas_->Clear(Drawing::Color::COLOR_BLACK);
+     }
+-    auto surfaceOhos = renderFrame_->GetSurface();
++    auto surfaceOhos = renderFrame_->GetSurface();//RSSurfaceOhosGl
+     renderEngine_->SetUiTimeStamp(renderFrame_, surfaceOhos);
+     renderFrame_->Flush();
+ }
+@@ -115,7 +118,7 @@ void RSVirtualScreenProcessor::ProcessSurface(RSSurfaceRenderNode& node)
+     params.dstRect.SetTop(0);
+     params.dstRect.SetRight(adaptiveDstWidth);
+     params.dstRect.SetBottom(adaptiveDstHeight);
+-    renderEngine_->DrawSurfaceNodeWithParams(*canvas_, node, params);
++    renderEngine_->DrawSurfaceNodeWithParams(*canvas_, node, params);//RSRenderEngine
+ }
+ 
+ void RSVirtualScreenProcessor::ProcessDisplaySurface(RSDisplayRenderNode& node)
+diff --git a/rosen/modules/render_service/core/screen_manager/rs_screen_manager.cpp b/rosen/modules/render_service/core/screen_manager/rs_screen_manager.cpp
+index 0934a2489f..014c75df73 100644
+--- a/rosen/modules/render_service/core/screen_manager/rs_screen_manager.cpp
++++ b/rosen/modules/render_service/core/screen_manager/rs_screen_manager.cpp
+@@ -906,7 +906,7 @@ ScreenId RSScreenManager::CreateVirtualScreen(
+             if (screen == nullptr || !screen->IsVirtual()) {
+                 continue;
+             }
+-            auto screenSurface = screen->GetProducerSurface();
++            auto screenSurface = screen->GetProducerSurface();//RSScreen
+             if (screenSurface == nullptr) {
+                 continue;
+             }
+@@ -1113,7 +1113,7 @@ int32_t RSScreenManager::SetVirtualScreenSurface(ScreenId id, sptr<Surface> surf
+             return SURFACE_NOT_UNIQUE;
+         }
+     }
+-    screensIt->second->SetProducerSurface(surface);
++    screensIt->second->SetProducerSurface(surface);//RSScreen
+     RS_LOGD("RSScreenManager %{public}s: set virtual screen surface success!", __func__);
+     RS_OPTIONAL_TRACE_NAME("RSScreenManager::SetVirtualScreenSurface, ForceRefreshOneFrame.");
+     ForceRefreshOneFrame();
+@@ -1419,7 +1419,7 @@ ScreenInfo RSScreenManager::QueryScreenInfoLocked(ScreenId id) const
+         return info;
+     }
+ 
+-    const auto &screen = screensIt->second;
++    const auto &screen = screensIt->second;//RSScreen
+     if (!screen) {
+         RS_LOGE("RSScreenManager::QueryScreenInfo screen %{public}" PRIu64 " has no info.", id);
+         return info;
+@@ -1487,7 +1487,7 @@ sptr<Surface> RSScreenManager::GetProducerSurface(ScreenId id) const
+         RS_LOGD("RSScreenManager::GetProducerSurface: There is no screen for id %{public}" PRIu64 ".", id);
+         return nullptr;
+     }
+-    return screensIt->second->GetProducerSurface();
++    return screensIt->second->GetProducerSurface();//RSScreen
+ }
+ 
+ std::shared_ptr<HdiOutput> RSScreenManager::GetOutput(ScreenId id) const
+diff --git a/rosen/modules/render_service_base/src/pipeline/rs_display_render_node.cpp b/rosen/modules/render_service_base/src/pipeline/rs_display_render_node.cpp
+index 1ac019e1eb..0cc6c5bd81 100644
+--- a/rosen/modules/render_service_base/src/pipeline/rs_display_render_node.cpp
++++ b/rosen/modules/render_service_base/src/pipeline/rs_display_render_node.cpp
+@@ -47,7 +47,7 @@ void RSDisplayRenderNode::CollectSurface(
+     bool onlyFirstLevel)
+ {
+     for (auto& child : *node->GetSortedChildren()) {
+-        child->CollectSurface(child, vec, isUniRender, onlyFirstLevel);
++        child->CollectSurface(child, vec, isUniRender, onlyFirstLevel);//RSDisplayRenderNode   RSSurfaceRenderNode
+     }
+ }
+ 
+@@ -66,7 +66,7 @@ void RSDisplayRenderNode::Prepare(const std::shared_ptr<RSNodeVisitor>& visitor)
+         return;
+     }
+     ApplyModifiers();
+-    visitor->PrepareDisplayRenderNode(*this);
++    visitor->PrepareDisplayRenderNode(*this);//RSRenderServiceVisitor
+ }
+ 
+ void RSDisplayRenderNode::Process(const std::shared_ptr<RSNodeVisitor>& visitor)
+diff --git a/rosen/modules/render_service_base/src/pipeline/rs_render_node.cpp b/rosen/modules/render_service_base/src/pipeline/rs_render_node.cpp
+index ed5de30e95..ececf141f3 100755
+--- a/rosen/modules/render_service_base/src/pipeline/rs_render_node.cpp
++++ b/rosen/modules/render_service_base/src/pipeline/rs_render_node.cpp
+@@ -879,7 +879,7 @@ void RSRenderNode::CollectSurface(
+     bool onlyFirstLevel)
+ {
+     for (auto& child : *node->GetSortedChildren()) {
+-        child->CollectSurface(child, vec, isUniRender, onlyFirstLevel);
++        child->CollectSurface(child, vec, isUniRender, onlyFirstLevel);//RSDisplayRenderNode
+     }
+ }
+ 
+@@ -899,7 +899,7 @@ void RSRenderNode::Prepare(const std::shared_ptr<RSNodeVisitor>& visitor)
+         return;
+     }
+     ApplyModifiers();
+-    visitor->PrepareChildren(*this);
++    visitor->PrepareChildren(*this);//RSRenderServiceVisitor
+ }
+ 
+ void RSRenderNode::QuickPrepare(const std::shared_ptr<RSNodeVisitor>& visitor)
+@@ -1042,7 +1042,7 @@ void RSRenderNode::Process(const std::shared_ptr<RSNodeVisitor>& visitor)
+     if (!visitor) {
+         return;
+     }
+-    visitor->ProcessChildren(*this);
++    visitor->ProcessChildren(*this);//RSRenderServiceVisitor
+ }
+ 
+ void RSRenderNode::SendCommandFromRT(std::unique_ptr<RSCommand>& command, NodeId nodeId)
+diff --git a/rosen/modules/render_service_base/src/pipeline/rs_surface_render_node.cpp b/rosen/modules/render_service_base/src/pipeline/rs_surface_render_node.cpp
+index a743cae32c..78f43c7bf2 100644
+--- a/rosen/modules/render_service_base/src/pipeline/rs_surface_render_node.cpp
++++ b/rosen/modules/render_service_base/src/pipeline/rs_surface_render_node.cpp
+@@ -571,7 +571,7 @@ void RSSurfaceRenderNode::Process(const std::shared_ptr<RSNodeVisitor>& visitor)
+         return;
+     }
+     RSRenderNode::RenderTraceDebug();
+-    visitor->ProcessSurfaceRenderNode(*this);
++    visitor->ProcessSurfaceRenderNode(*this);//RSRenderServiceVisitor
+ }
+ 
+ void RSSurfaceRenderNode::ProcessRenderBeforeChildren(RSPaintFilterCanvas& canvas)
+diff --git a/rosen/modules/render_service_base/src/platform/ohos/backend/rs_surface_frame_ohos_gl.cpp b/rosen/modules/render_service_base/src/platform/ohos/backend/rs_surface_frame_ohos_gl.cpp
+index 365fcc4ebb..ad2fe84a62 100644
+--- a/rosen/modules/render_service_base/src/platform/ohos/backend/rs_surface_frame_ohos_gl.cpp
++++ b/rosen/modules/render_service_base/src/platform/ohos/backend/rs_surface_frame_ohos_gl.cpp
+@@ -52,7 +52,7 @@ Drawing::Canvas* RSSurfaceFrameOhosGl::GetCanvas()
+             return nullptr;
+         }
+     }
+-    return surface_->GetCanvas().get();
++    return surface_->GetCanvas().get();//Drawing::Surface
+ }
+ 
+ std::shared_ptr<Drawing::Surface> RSSurfaceFrameOhosGl::GetSurface()
+@@ -75,7 +75,7 @@ void RSSurfaceFrameOhosGl::SetReleaseFence(const int32_t& fence)
+ 
+ void RSSurfaceFrameOhosGl::CreateSurface()
+ {
+-    surface_ = renderContext_->AcquireSurface(width_, height_);
++    surface_ = renderContext_->AcquireSurface(width_, height_);////SkSurface
+ }
+ } // namespace Rosen
+ } // namespace OHOS
+diff --git a/rosen/modules/render_service_base/src/platform/ohos/backend/rs_surface_ohos_gl.cpp b/rosen/modules/render_service_base/src/platform/ohos/backend/rs_surface_ohos_gl.cpp
+index 9ee8341cdd..5461931eb8 100644
+--- a/rosen/modules/render_service_base/src/platform/ohos/backend/rs_surface_ohos_gl.cpp
++++ b/rosen/modules/render_service_base/src/platform/ohos/backend/rs_surface_ohos_gl.cpp
+@@ -68,7 +68,7 @@ std::unique_ptr<RSSurfaceFrame> RSSurfaceOhosGl::RequestFrame(int32_t width, int
+         return nullptr;
+     }
+ 
+-    std::unique_ptr<RSSurfaceFrameOhosGl> frame = std::make_unique<RSSurfaceFrameOhosGl>(width, height);
++    std::unique_ptr<RSSurfaceFrameOhosGl> frame = std::make_unique<RSSurfaceFrameOhosGl>(width, height);//RSSurfaceFrameOhosGl
+ 
+     NativeWindowHandleOpt(mWindow, SET_FORMAT, pixelFormat_);
+ #ifdef RS_ENABLE_AFBC

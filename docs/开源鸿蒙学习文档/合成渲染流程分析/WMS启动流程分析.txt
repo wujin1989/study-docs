@@ -1,0 +1,23 @@
+WindowManagerService::WindowManagerService
+	WindowRoot::WindowRoot   --->  WindowManagerService::OnWindowEvent  注册一个窗口事件，处理死亡通知
+	new InputWindowMonitor(windowRoot_);
+    new WindowController(windowRoot_, inputWindowMonitor_);
+    new DragController(windowRoot_);
+    std::make_shared<WindowCommonEvent>();
+    new WindowGroupMgr(windowRoot_);
+	
+	RSUIDirector::Create
+	RSUIDirector::SetUITaskRunner
+	RSUIDirector::Init
+		AnimationCommandHelper::SetAnimationCallbackProcessor	--->  RSUIDirector::AnimationCallbackProcessor
+		RSNodeMap::Instance().GetAnimationFallbackNode()->isRenderServiceNode_ = true;
+		RSApplicationAgentImpl::RegisterRSApplicationAgent
+			RSRenderServiceConnectHub::SetOnConnectCallback
+				RSRenderServiceConnection::RegisterApplicationAgent
+					RSMainThread::RegisterApplicationAgent
+		
+WindowManagerService::OnStart
+	WindowManagerService::Init
+	DisplayManagerServiceInner::RegisterDisplayChangeListener
+	DisplayManagerServiceInner::RegisterWindowInfoQueriedListener
+	

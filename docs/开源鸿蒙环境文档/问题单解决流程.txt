@@ -1,0 +1,4 @@
+禅道问题单流程日常提醒：
+1. 问题修改完后，单子不要直接走给测试。 单子状态改为“已解决”，指派给PM刘烁。
+2. 问题单需要延期的，不要自己直接单独去找刘烁沟通。
+3. 问题单如果要CCB裁决，参考wiki上的流程  https://hongz.archermind.com/document/index?document_id=267

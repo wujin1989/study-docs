@@ -1,0 +1,63 @@
+HiRecorderImpl::SetVideoSource
+	SurfaceEncoderFilter::SurfaceEncoderFilter						
+	Pipeline::AddHeadFilters			//SurfaceEncoderFilter这个是录制视频的第一个filter
+	
+HiRecorderImpl::Prepare
+	SurfaceEncoderFilter::Init													
+		SurfaceEncoderAdapter::Init													
+			VideoEncoderFactory::CreateByMime											
+				AVCodecVideoEncoderImpl::Init
+					CodecServer::Init
+						CodecServer::InitByMime
+							CodecFactory::CreateCodecByName
+								HCodecLoader::CreateByName
+									HCodec::Create
+							HCodec::Init
+								HCodec::OnAllocateComponent
+									HCodec::HdiCallback::EventHandler
+									HCodec::HdiCallback::EmptyBufferDone
+									HCodec::HdiCallback::FillBufferDone					HCodec::HdiCallback::FillBufferDone
+		
+		//enableSurfaceModeInputCb_ 这里会导致这个变量是true
+		SurfaceEncoderAdapter::SetEncoderAdapterCallback						===》      SurfaceEncoderAdapter::OnOutputBufferAvailable    
+	SurfaceEncoderFilter::Configure
+	
+	
+	Pipeline::Prepare
+	
+HiRecorderImpl::Start
+	Pipeline::Start
+	
+	
+//////////////////////////////////////////////////////////////////////
+
+HEncoder::SubmitAllBuffersOwnedByUs								////当调用start的时候
+	ConsumerSurface::RegisterConsumerListener
+		HEncoder::EncoderBuffersConsumerListener::OnBufferAvailable				//当图形那里往surface里写数据，那么encoder作为消费者，将调用回调
+			HEncoder::OnGetBufferFromSurface
+				HEncoder::GetOneBufferFromSurface
+				HEncoder::TraverseAvaliableBuffers
+					HEncoder::SubmitOneBuffer       //提交一个surfacebuffer到编码器
+						HCodec::NotifyUserToFillThisInBuffer			//通知用户已经往编码器送入了输入数据
+							SurfaceEncoderAdapterCallback::OnInputBufferAvailable       //这里可以dump送给编码器的输入buffer
+				
+				
+HCodec::HdiCallback::FillBufferDone
+	HCodec::OnOMXFillBufferDone
+		HCodec::NotifyUserOutBufferAvaliable
+			CodecServer::OnOutputBufferAvailable
+				SurfaceEncoderAdapter::OnOutputBufferAvailable
+				
+				
+HCodec::StartingState::AllocateBuffers			
+	HEncoder::AllocateBuffersOnPort		
+		HEncoder::AllocInBufsForDynamicSurfaceBuf	//分配输入buffer，surface模式
+		HCodec::AllocateAvLinearBuffers				//分配输出buffer
+			HCodec::AllocateAvSharedBuffers
+	
+	
+	
+dump yuv or h264:
+
+chmod 777 -R /data/local/
+

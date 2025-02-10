@@ -1,0 +1,51 @@
+
+gst_vdec_base_open
+	GstHdiFactory::CreateHdiVdec
+gst_vdec_base_set_format
+	gst_vdec_base_pre_init_surface
+		gst_vdec_base_update_out_pool
+			HdiCodec::SetOutputPool
+				HdiVdecOutBufferMgr::SetOutputPool
+					gst_producer_surface_pool_set_callback                =====》        HdiVdecOutBufferMgr::NewBuffer   //这里是显存buffer，准备给fillthisbuffer用
+					
+gst_vdec_base_handle_frame
+	gst_vdec_base_prepare
+	HdiCodec::Start
+	gst_vdec_base_loop
+		HdiCodec::PullOutputBuffer
+			HdiOutBufferMgr::PullBuffer
+				mBuffers.pop_front();				//当HdiCodec::OnFillBufferDone回调的时候会把解码后的数据放进这里的mBuffers,然后这里取
+				
+	gst_vdec_base_push_input_buffer
+		HdiCodec::PushInputBuffer
+			HdiInBufferMgr::PushBuffer
+				HdiEmptyThisBuffer	//送decoder进行解码           ======》        HdiCodec::OnEmptyBufferDone
+																					
+gst_vdec_base_decide_allocation
+
+	
+	
+
+gst_surface_mem_sink_init
+	gst_producer_surface_pool_new
+		gst_producer_surface_pool_init
+	gst_producer_surface_pool_start
+		gst_producer_surface_pool_request_loop
+			gst_producer_surface_pool_alloc_buffer
+				gst_surface_request_buffer
+					ProducerSurface::RequestBuffer
+						BufferQueueProducer::RequestBuffer
+							BufferQueue::RequestBuffer
+			HdiVdecOutBufferMgr::NewBuffer
+				HdiVdecOutBufferMgr::OnNewBuffer
+					HdiOutBufferMgr::PushBuffer
+						HdiFillThisBuffer                        =====》          HdiCodec::OnFillBufferDone
+																					HdiOutBufferMgr::CodecBufferAvailable
+																						mBuffers.push_back(bufferWarp);    //这里是解码后的数据
+																						
+//Gstreamer会调用render去渲染解码后的数据																				
+gst_mem_sink_class_init
+	gst_mem_sink_stream_render
+		PlayerSinkProvider::NewSampleCb   //这个回调是创建video sink的时候设置的
+			gst_mem_sink_app_render
+				gst_surface_mem_sink_do_app_render

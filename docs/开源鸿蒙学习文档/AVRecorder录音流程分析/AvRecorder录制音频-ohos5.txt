@@ -1,0 +1,162 @@
+
+HiRecorderImpl::Init
+	recorderEventReceiver_ = std::make_shared<RecorderEventReceiver>(this);                   ===> HiRecorderImpl::OnEvent
+    recorderCallback_ = std::make_shared<RecorderFilterCallback>(this);                       ===> HiRecorderImpl::OnCallback
+    pipeline_->Init(recorderEventReceiver_, recorderCallback_, recorderId_);
+	
+HiRecorderImpl::SetAudioSource
+	AudioCaptureFilter::AudioCaptureFilter
+	Pipeline::AddHeadFilters
+	
+HiRecorderImpl::SetOutputFormat
+HiRecorderImpl::Configure
+HiRecorderImpl::Prepare
+	AudioCaptureFilter::SetParameter
+	AudioCaptureFilter::Init
+		AudioCaptureModule::Init
+			AudioCapturer::Create
+				AudioCapturerPrivate::AudioCapturerPrivate
+				AudioCapturerPrivate::SetParams
+					CapturerInClientInner::CapturerInClientInner
+					AudioCapturerPrivate::InitAudioStream
+						CapturerInClientInner::SetAudioStreamInfo
+							CapturerInClientInner::InitIpcStream
+HiRecorderImpl::Start
+	AudioCaptureFilter::DoStart
+		AudioCaptureModule::Start
+			AudioCapturerPrivate::Start
+			
+			
+			
+
+
+///////////////////////////////////  
+REGISTER_SYSTEM_ABILITY_BY_ID(AudioServer, AUDIO_DISTRIBUTED_SERVICE_ID, true)
+	AudioServer::AudioServer
+		AudioEffectServer::AudioEffectServer
+
+AudioServer::OnStart
+	AudioServer::paDaemonThread
+	AudioServer::RegisterAudioCapturerSourceCallback    //语音唤醒使用
+	AudioParamParser::LoadConfiguration   //目前好像没有xml配置
+	
+AudioServer::OnAddSystemAbility
+
+//////////////////////////////////////////////////
+REGISTER_SYSTEM_ABILITY_BY_ID(AudioPolicyServer, AUDIO_POLICY_SERVICE_ID, true)
+	AudioPolicyServer::AudioPolicyServer
+		AudioPolicyService::GetAudioPolicyService
+			audioPolicyManager_(AudioPolicyManagerFactory::GetAudioPolicyManager()),
+			audioPolicyConfigParser_(AudioPolicyParserFactory::GetInstance().CreateParser(*this)),
+			streamCollector_(AudioStreamCollector::GetAudioStreamCollector()),
+			audioRouterCenter_(AudioRouterCenter::GetAudioRouterCenter()),
+			audioEffectManager_(AudioEffectManager::GetAudioEffectManager()),
+			audioDeviceManager_(AudioDeviceManager::GetAudioDeviceManager()),
+			audioStateManager_(AudioStateManager::GetAudioStateManager()),
+			audioPolicyServerHandler_(DelayedSingleton<AudioPolicyServerHandler>::GetInstance()),
+			audioPnpServer_(AudioPnpServer::GetAudioPnpServer())
+			
+		AudioSpatializationService::GetAudioSpatializationService
+			audioPolicyServerHandler_(DelayedSingleton<AudioPolicyServerHandler>::GetInstance())
+			
+		AudioRouterCenter::GetAudioRouterCenter
+			AudioStrategyRouterParser::LoadConfiguration	//audio_strategy_router.xml 音频路由
+			AudioStrategyRouterParser::Parse
+				routers.push_back(make_unique<UserSelectRouter>());
+				routers.push_back(make_unique<PrivacyPriorityRouter>());
+				routers.push_back(make_unique<PublicPriorityRouter>());
+				routers.push_back(make_unique<StreamFilterRouter>());
+				routers.push_back(make_unique<DefaultRouter>());
+				routers.push_back(make_unique<CockpitPhoneRouter>());
+				routers.push_back(make_unique<PairDeviceRouter>());
+				
+			AudioUsageStrategyParser::LoadConfiguration
+			AudioUsageStrategyParser::Parse
+				
+AudioPolicyServer::OnStart
+	AudioInterruptService::Init
+		AudioFocusParser::LoadConfig				//audio_interrupt_policy_config.xml 音频焦点
+		
+	AudioPolicyService::Init
+		AudioAdapterManager::Init
+		AudioEffectManager::EffectManagerInit
+		AudioDeviceManager::ParseDeviceXml
+		AudioPnpServer::init
+			AudioPnpServer::OpenAndReadWithSocket		//启动时候判断usb耳机是否插入
+			AudioPnpServer::OpenAndReadInput          //启动时候判断圆孔耳机是否插入
+			
+		AudioPolicyParser::LoadConfiguration			//audio_policy_config.xml 音频策略
+		AudioPolicyService::LoadToneDtmfConfig
+		
+		DeviceStatusListener::RegisterDeviceStatusListener
+			AudioPnpServer::DetectAudioDevice
+				AudioSocketThread::DetectAnalogHeadsetState		//启动时候判断耳机是否插入
+				AudioSocketThread::DetectUsbHeadsetState
+
+AudioPolicyServer::OnAddSystemAbility
+	AudioPolicyServer::AddAudioServiceOnStart
+		AudioPolicyService::ConnectServiceAdapter						
+			AudioAdapterManager::ConnectServiceAdapter
+				AudioServiceAdapter::CreateAudioAdapter
+					PulseAudioServiceAdapterImpl::PulseAudioServiceAdapterImpl
+				PulseAudioServiceAdapterImpl::Connect						//可以看出audiopolicymanager也是audioserver的客户端
+			
+		
+
+////////////////////////// 客户端ipc caputer流程
+CapturerInClientInner::InitIpcStream
+	AudioManagerProxy::CreateAudioProcess
+	CapturerInClientInner::InitSharedBuffer
+		IpcStreamProxy::ResolveBuffer
+			IpcStreamStub::HandleResolveBuffer
+				IpcStreamInServer::ResolveBuffer
+					CapturerInServer::ResolveBuffer
+				OHAudioBuffer::WriteToParcel			//把共享audiobuffer写到对端
+		OHAudioBuffer::ReadFromParcel					//读到服务端的buffer信息后创建本地的buffer
+	CapturerInClientInner::InitCacheBuffer
+	
+CapturerInClientInner::SetCaptureMode		//5.0好像都是callback模式
+	CapturerInClientInner::ReadCallbackFunc
+		CapturerInClientInner::Read			//从共享的audiobuffer中读取，然后放进cache
+		readCb_->OnReadData(cbBufferSize_); //回调到用户提供的callback
+		
+AudioCapturerPrivate::Start                           
+	CapturerInClientInner::StartAudioStream
+		IpcStreamStub::HandleStart
+			IpcStreamInServer::Start
+				CapturerInServer::Start
+					PaCapturerStreamImpl::Start
+	
+	
+////////////////////////// 服务端capturer流程
+AudioServer::CreateAudioProcess
+	AudioService::GetIpcStream
+		IpcStreamInServer::Create
+			IpcStreamInServer::Config
+				IpcStreamInServer::ConfigCapturer
+					CapturerInServer::Init
+						PaAdapterManager::CreateCapturer
+							PaAdapterManager::InitPaContext
+							PaAdapterManager::InitPaStream
+							PaAdapterManager::CreateCapturerStream
+								PaCapturerStreamImpl::InitParams
+									PaCapturerStreamImpl::PAStreamReadCb   //pulseaudio 读取数据
+										CapturerInServer::OnReadData
+											CapturerInServer::ReadData		//从pa读取到的数据先放进cache，然后从cache里取给audiobuffer
+												OHAudioBuffer::SetHandleInfo       //设置时间戳，当前时间
+						CapturerInServer::ConfigServerBuffer
+							CapturerInServer::InitCacheBuffer
+							OHAudioBuffer::CreateFromLocal
+								OHAudioBuffer::Init
+						
+						
+////////////////////////////NDK screencapture 音频流程，拿到timestamp
+ScreenCaptureServer::StartAudioCapture
+	ScreenCaptureServer::StartStreamInnerAudioCapture
+		AudioCapturerWrapper::Start
+			AudioCapturerWrapper::CaptureAudio
+				AudioCapturerPrivate::Read
+					CapturerInClientInner::Read
+				AudioCapturerPrivate::GetAudioTime	
+					CapturerInClientInner::GetAudioTime
+			

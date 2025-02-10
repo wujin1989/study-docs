@@ -1,0 +1,40 @@
+DisplayManagerService::DisplayManagerService
+DisplayManagerService::OnStart
+	DisplayManagerService::Init
+		DisplayManagerConfig::LoadConfigXml
+		DisplayManagerService::ConfigureDisplayManagerService
+		AbstractScreenController::Init
+			AbstractScreenController::RegisterRsScreenConnectionChangeListener	
+				RSRenderServiceClient::SetScreenChangeCallback          
+					CustomScreenChangeCallback::CustomScreenChangeCallback   
+					RSRenderServiceConnection::SetScreenChangeCallback
+						RSScreenManager::AddScreenChangeCallback
+							screenChangeCallbacks_.push_back(callback);	---> AbstractScreenController::OnRsScreenConnectionChange
+																				AbstractScreenController::ProcessScreenConnected
+																					AbstractScreenController::InitAndGetScreen
+																						AbstractScreen::AbstractScreen
+																						dmsScreenMap_.insert(std::make_pair(dmsScreenId, absScreen));
+																					AbstractScreenController::AddToGroupLocked
+																						AbstractScreenController::AddAsFirstScreenLocked
+																						AbstractScreenController::AddAsSuccedentScreenLocked
+																					AbstractScreenController::NotifyScreenConnected
+																						DisplayManagerAgentController::OnScreenConnect
+																							BindNativeFunction(env, exportObj, "on", moduleName, JsScreenManager::RegisterScreenManagerCallback);
+																					AbstractScreenController::NotifyScreenGroupChanged	
+																					AbstractDisplayController::OnAbstractScreenConnect
+																						AbstractDisplayController::GetAbstractDisplayByScreen
+																							AbstractDisplayController::BindAloneScreenLocked
+																							AbstractDisplayController::AddScreenToMirrorLocked
+																							AbstractDisplayController::AddScreenToExpandLocked
+																								AbstractDisplay::AbstractDisplay
+																								AbstractScreenController::GetAbstractScreenGroup //找到absScreen所在组
+																								AbstractScreenGroup::GetChildPosition //找到组中的absScreen位置
+																								DisplayManagerAgentController::OnDisplayCreate
+																								
+																								
+		AbstractDisplayController::Init
+			abstractScreenCallback_->onConnect_ = std::bind(&AbstractDisplayController::OnAbstractScreenConnect, this, std::placeholders::_1);
+			abstractScreenCallback_->onDisconnect_ = std::bind(&AbstractDisplayController::OnAbstractScreenDisconnect, this, std::placeholders::_1);
+			abstractScreenCallback_->onChange_ = std::bind(&AbstractDisplayController::OnAbstractScreenChange, this, std::placeholders::_1,std::placeholders::_2);
+			
+			abstractScreenController->RegisterAbstractScreenCallback(abstractScreenCallback_);

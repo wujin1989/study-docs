@@ -1,0 +1,86 @@
+PlayerEngineGstImpl::PrepareAsync
+	PlayerEngineGstImpl::PlayBinCtrlerInit
+		PlayerEngineGstImpl::PlayBinCtrlerPrepare
+			std::bind(&PlayerEngineGstImpl::OnNotifyMessage, this, std::placeholders::_1);       ====>     PlayerEngineGstImpl::OnNotifyMessage 处理engine消息
+			PlayerSinkProvider::PlayerSinkProvider
+			IPlayBinCtrler::Create
+				PlayBinCtrlerBase::PlayBinCtrlerBase
+				PlayBinCtrlerBase::Init
+					ChangeState(idleState_);
+					TaskQueue::Start                                                             ====>     TaskQueue::TaskProcessor
+			PlayBinCtrlerBase::SetSource
+			PlayerEngineGstImpl::SetAudioRendererInfo
+			PlayerEngineGstImpl::OnNotifyElemSetup
+				PlayerCodecCtrl::DetectCodecSetup
+					PlayerCodecCtrl::SetupCodecCb
+						g_object_get(videoSink, "surface-pool", &pool, nullptr);
+						g_object_set(G_OBJECT(src), "surface-pool", pool, nullptr);  //把videosink的surface pool设给codec。这里假设src是codec
+		
+		subMsgHandler_[PLAYBIN_SUB_MSG_BUFFERING_START] = &PlayerEngineGstImpl::HandleBufferingStart;					      
+		subMsgHandler_[PLAYBIN_SUB_MSG_BUFFERING_END] = &PlayerEngineGstImpl::HandleBufferingEnd;
+		subMsgHandler_[PLAYBIN_SUB_MSG_BUFFERING_TIME] = &PlayerEngineGstImpl::HandleBufferingTime;
+		....
+	PlayBinCtrlerBase::PrepareAsync
+		PlayBinCtrlerBase::PrepareAsyncInternal
+			PlayerTrackParse::Create
+			PlayBinCtrlerBase::EnterInitializedState
+				PlayBin2Ctrler::OnInit
+					gst_element_factory_make("playbin", "playbin");
+				PlayBinCtrlerBase::SetupCustomElement
+					PlayerSinkProvider::CreateVideoSink
+						PlayerSinkProvider::DoCreateVideoSink
+							gst_element_factory_make("videodisplaysink", nullptr)
+							g_object_set(G_OBJECT(sink), "surface", static_cast<gpointer>(sinkProvider->GetProducerSurface()), nullptr);  //设置应用传的surface
+							PlayerSinkProvider::NewSampleCb
+
+					PlayerSinkProvider::CreateAudioSink
+						PlayerSinkProvider::DoCreateAudioSink
+							PlayerSinkProvider::EnableOptRenderDelay
+							gst_element_factory_make("audioserversink", nullptr)   
+							
+					//Playbin接收从sink来的消息		
+					std::bind(&PlayBinCtrlerBase::OnSinkMessageReceived, this, std::placeholders::_1);
+						PlayBinCtrlerBase::OnSinkMessageReceived
+							PlayBinCtrlerBase::ReportMessage        //这里会调用上面的 PlayerEngineGstImpl::OnNotifyMessage
+							
+				PlayBinCtrlerBase::SetupSourceSetupSignal
+				PlayBinCtrlerBase::SetupSignalMessage
+					PlayBinCtrlerBase::ElementSetup
+					PlayBinCtrlerBase::AudioChanged																	//处理gstreamer内部消息，最终都是通过PlayerEngineGstImpl::OnNotifyMessage暴露给应用
+					std::bind(&PlayBinCtrlerBase::OnMessageReceived, this, std::placeholders::_1);     =====> PlayBinCtrlerBase::OnMessageReceived
+					GstMsgProcessor::Init																	      StateMachine::HandleMessage
+						GstMsgProcessor::DoInit																		  currState_->OnMessageReceived(msg);
+							GstMsgProcessor::BusCallback																PlayBinCtrlerBase::BaseState::OnMessageReceived
+								GstMsgProcessor::ProcessGstMessage															
+									GstMsgConverterDefault::ConvertToInnerMsg
+										PlayBinCtrlerBase::OnMessageReceived
+				PlayBinCtrlerBase::SetAudioRendererInfo
+				g_object_set(playbin_, "uri", uri_.c_str(), nullptr);    //给playbin 设置播放的 uri
+				StateMachine::ChangeState(initializedState_);                         ====>  // NULL->READY 会调用 gst_audio_server_sink_start
+																														AudioSinkFactory::CreateAudioSink
+			PlayBinCtrlerBase::InitializedState::Prepare																	AudioSinkSvImpl::AudioSinkSvImpl
+				StateMachine::ChangeState(ctrler_.preparingState_);                            							AudioSinkSvImpl::Prepare
+					PlayBinCtrlerBase::BaseState::ChangePlayBinState(GST_STATE_PAUSED)										AudioRenderer::Create
+						PlayBinCtrlerBase::QueryPosition																		AudioRendererPrivate::AudioRendererPrivate
+						PlayBinCtrlerBase::ReportMessage      //这里会调用上面的 PlayerEngineGstImpl::OnNotifyMessage					IAudioStream::GetPlaybackStream
+						gst_element_set_state(GST_ELEMENT_CAST(ctrler_.playbin_), GST_STATE_PAUSED);									AudioStream::AudioStream
+																															AudioRendererPrivate::SetParams
+																																AudioStream::SetAudioStreamInfo
+																																	AudioServiceClient::Initialize
+																																	AudioServiceClient::CreateStream
+																																		AudioServiceClient::ConnectStreamToPA
+																																			AudioServiceClient::GetDeviceNameForConnect
+																																				AudioSystemManager::GetSelectedDeviceInfo  //选择输出设备
+																														AudioSinkSvImpl::Start
+																															AudioRendererPrivate::Start
+																																AudioStream::StartAudioStream
+																																	AudioServiceClient::StartStream
+																																		AudioStream::WriteCbTheadLoop
+																																			gstreamer正常播放是不走这个的。这个是应用通过回调写数据，然后处理的，比如果应用通过audiorender直接播放pcm数据
+当play的时候，解码后的数据，进行render				
+gst_audio_server_sink_render
+	AudioSinkSvImpl::Write
+		AudioRendererPrivate::Write
+			AudioStream::Write
+				AudioServiceClient::WriteStream
+					AudioServiceClient::PaWriteStream
