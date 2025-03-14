@@ -11,3 +11,5 @@
 
 
 在hdc shell下执行 SP_daemon -ohtestfps N 命令，N代表打印次数，获取焦点窗口的帧率
+
+可以临时关闭局部渲染，param set rosen.partialrender.enabled '0'  这样就强制每帧都渲染。(RSMainThread不丢帧)
