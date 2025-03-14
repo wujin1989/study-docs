@@ -1,0 +1,13 @@
+分离渲染:
+	为每个进程渲染完成后，再送到RS进行合成显示，天然具有并行性，但是需要每个进程独立申请buffer，计算遮挡区域，在不太复杂的界面下运行良好。
+
+统一渲染:
+	所有计算渲染都在RS进程，需通过缓存机制、并行绘制等提高性能。适合硬件性能比较高的设备。
+	graphic_2d_feature_parallel_render_enable并行绘制依赖GPU硬件，需vulkan驱动支持。opengles因context机制，很难实现并行绘制
+
+
+	开启统一渲染：echo ENABLED_FOR_ALL > /etc/unirender.config
+	关闭统一渲染：echo DISABLED > /etc/unirender.config
+
+
+在hdc shell下执行 SP_daemon -ohtestfps N 命令，N代表打印次数，获取焦点窗口的帧率

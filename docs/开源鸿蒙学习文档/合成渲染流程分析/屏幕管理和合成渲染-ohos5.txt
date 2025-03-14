@@ -82,6 +82,10 @@ RSMainThread::Render
 物理屏幕合成渲染流程和虚拟机差不多：
 1 先用hwc合成
 2 hwc不能合成的用gpu合成，创建一个fbsurface然后走redraw流程
+
+RSRenderServiceVisitor::ProcessDisplayRenderNode
+
+
 	
 /////////////////////////////////////////////////////////////  渲染树 ///////////////////////////		
 																	rootNode
