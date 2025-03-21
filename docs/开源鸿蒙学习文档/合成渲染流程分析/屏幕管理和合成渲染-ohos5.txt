@@ -93,3 +93,10 @@ RSRenderServiceVisitor::ProcessDisplayRenderNode
 									displayNode1                   displayNode2                 displayNode3
 										 |                  		    |                            |
 						   surfaceNode1    surfaceNode2    surfaceNode1    surfaceNode2     surfaceNode1    surfaceNode2
+
+
+dump layers:
+param set rosen.dumplayer.enabled "1"
+
+关闭局部渲染:
+param set rosen.partialrender.enabled "0"
