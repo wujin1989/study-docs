@@ -124,6 +124,9 @@ IPCObjectStub::OnFirstStrongRef
 
     
 
+BR_* 开头的是binder驱动发出的消息
+BC_* 是发给binder驱动的消息
+
 
 创建binder 普通线程是由binder 驱动控制的，驱动通过 BR_SPAWN_LOOPER 命令告知进程需要创建一个新的线程，然后进程通过 BC_REGISTER_LOOPER 命令告知驱动其子线程（非主线程）已经ready
 
