@@ -1,0 +1,142 @@
+1 定义接口
+
+class RSIRenderService : public IRemoteBroker {
+public:
+    DECLARE_INTERFACE_DESCRIPTOR(u"ohos.rosen.RenderService");
+
+    RSIRenderService() = default;
+    virtual ~RSIRenderService() noexcept = default;
+
+    virtual sptr<RSIRenderServiceConnection> CreateConnection(const sptr<RSIConnectionToken>& token) = 0;
+};
+
+2 实现stub 和 服务类
+
+class RSRenderServiceStub : public IRemoteStub<RSIRenderService> {
+public:
+    RSRenderServiceStub() = default;
+    ~RSRenderServiceStub() noexcept = default;
+
+    int OnRemoteRequest(uint32_t code, MessageParcel& data, MessageParcel& reply, MessageOption& option) override;
+
+private:
+    static const RSInterfaceCodeSecurityManager securityManager_;
+    RSRenderServiceSecurityUtils securityUtils_;
+};
+
+class RSRenderService : public RSRenderServiceStub {
+public:
+    RSRenderService();
+    ~RSRenderService() noexcept;
+
+    RSRenderService(const RSRenderService&) = delete;
+    RSRenderService& operator=(const RSRenderService&) = delete;
+
+    bool Init();
+    void Run();
+    ...
+}
+
+3 实现proxy类
+
+class RSRenderServiceProxy : public IRemoteProxy<RSIRenderService> {
+public:
+    explicit RSRenderServiceProxy(const sptr<IRemoteObject>& impl);
+    virtual ~RSRenderServiceProxy() noexcept = default;
+
+    sptr<RSIRenderServiceConnection> CreateConnection(const sptr<RSIConnectionToken>& token) override;
+
+private:
+    static inline BrokerDelegator<RSRenderServiceProxy> delegator_;
+};
+
+4 如何把服务添加到SaMgr?
+
+RSRenderService::Init
+    SystemAbilityManager::AddSystemAbility   //这里直接把服务类的地址放进去，也就是remoteObj，这里remoteObj就是RenderService自己
+
+NOTE：
+SystemAbilityManager::GetSystemAbility 获取到的就是RenderService这个类的指针，AddSystemAbility的时候把this丢进去的。
+
+
+5 IPCObjectStub::OnFirstStrongRef 什么时候调用?
+
+当第一次引用的时候调用。
+
+
+//////////////////////////////////////////   下面是服务进程的binder通信消息循环 /////////////////////////
+//发送binder消息
+IPCObjectProxy::SendRequest
+    IPCObjectProxy::SendRequestInner
+        BinderInvoker::SendRequest
+            BinderInvoker::WriteTransaction
+            BinderInvoker::WaitForCompletion
+                BinderInvoker::TransactWithDriver
+                    BinderConnector::WriteBinder       //写数据到binder驱动
+                BinderInvoker::DealWithCmd
+                    BinderInvoker::OnReply
+                        BinderInvoker::HandleReply
+            
+//接收binder消息
+IPCObjectStub::OnFirstStrongRef
+    IPCProcessSkeleton::GetCurrent
+        IPCProcessSkeleton::IPCProcessSkeleton
+        IPCProcessSkeleton::SetMaxWorkThread
+        IPCProcessSkeleton::SpawnThread                                  //主线程用IPCWorkThread::SPAWN_ACTIVE，binder驱动通过发送BR_SPAWN_LOOPER 用 IPCWorkThread::SPAWN_PASSIVE
+            IPCWorkThreadPool::SpawnThread
+                IPCWorkThread::Start
+                    IPCWorkThread::ThreadHandler
+                        IPCWorkThread::JoinThread
+                            BinderInvoker::JoinThread
+                                BinderInvoker::StartWorkLoop                             //这个循环是主线程的。主线程通过BR_SPAWN_LOOPER可以开辟新的binder线程
+                                    while{
+                                        BinderInvoker::TransactWithDriver
+                                        BinderInvoker::HandleCommands
+                                            BinderInvoker::HandleCommandsInner           //处理从驱动发过来的消息
+                                                case BR_TRANSACTION_SEC_CTX:
+                                                case BR_TRANSACTION:
+                                                    OnTransaction(cmd, error);
+                                                        BinderInvoker::Transaction
+                                                            BinderInvoker::TargetStubSendRequest
+                                                                if (tr.target.ptr != 0) {
+                                                                    GeneralServiceSendRequest(tr, data, reply, option);    //服务是业务service （当已经通过samgr拿到remoteobj后那么就可以proxy和stub直接通信走这个）
+                                                                        IPCObjectStub::SendRequest
+                                                                            IPCObjectStub::SendRequestInner
+                                                                                RSRenderServiceStub::OnRemoteRequest
+                                                                } else {
+                                                                    SamgrServiceSendRequest(tr, data, reply, option);      //服务是samgr
+                                                                        IPCObjectStub::SendRequest
+                                                                            IPCObjectStub::SendRequestInner
+                                                                                SystemAbilityManagerStub::OnRemoteRequest
+                                                                }
+                                                    break;
+                                                case BR_SPAWN_LOOPER:     
+                                                    OnSpawnThread();           //当client发起ipc请求的时候，binder驱动里会发送BR_SPAWN_LOOPER给主线程，然后走这里创建新的binder线程
+                                                    break;
+                                                case BR_DEAD_BINDER:
+                                                    OnBinderDied();
+                                                    break;
+                                    }
+                            
+
+    IPCProcessSkeleton::AttachObject
+
+
+    
+
+
+创建binder 普通线程是由binder 驱动控制的，驱动通过 BR_SPAWN_LOOPER 命令告知进程需要创建一个新的线程，然后进程通过 BC_REGISTER_LOOPER 命令告知驱动其子线程（非主线程）已经ready
+
+
+kernel/linux/linux-5.10-rk3568/drivers/android/binder.c 里定义:
+
+ * @waiting_threads:      threads currently waiting for proc work                  //这个就是ready
+ *                        (protected by @inner_lock)
+ * @max_threads:          cap on number of binder threads
+ *                        (protected by @inner_lock)
+ * @requested_threads:    number of binder threads requested but not
+ *                        yet started. In current implementation, can
+ *                        only be 0 or 1.
+ *                        (protected by @inner_lock)
+ * @requested_threads_started: number binder threads started
+ *                        (protected by @inner_lock)
